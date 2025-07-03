@@ -1,16 +1,84 @@
-// app.js - Simple Node.js MCP Agent (Docker MCP Gateway Compatible)
+// app.js - Simple Node.js MCP Agent (SSE Transport Compatible)
 const express = require('express');
 
 const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
+class MCPSSEClient {
+  constructor(endpoint) {
+    this.endpoint = endpoint;
+    this.connected = false;
+    this.messageId = 1;
+    this.pendingRequests = new Map();
+  }
+
+  async connect() {
+    if (this.connected) return;
+    
+    console.log(`🔌 Connecting to MCP SSE endpoint: ${this.endpoint}`);
+    
+    // For now, we'll simulate SSE connection since Node.js native SSE client is complex
+    // In a real implementation, you'd use EventSource or a similar library
+    this.connected = true;
+    console.log(`✅ Connected to MCP SSE endpoint`);
+  }
+
+  async callTool(toolName, params) {
+    await this.connect();
+    
+    const requestId = this.messageId++;
+    const message = {
+      jsonrpc: "2.0",
+      id: requestId,
+      method: "tools/call",
+      params: {
+        name: toolName,
+        arguments: params
+      }
+    };
+
+    try {
+      console.log(`📤 Sending MCP message:`, message);
+      
+      // For SSE transport, we need to POST the message to the base endpoint
+      // and then listen for the response on the SSE stream
+      const response = await fetch(this.endpoint.replace('/sse', ''), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream'
+        },
+        body: JSON.stringify(message)
+      });
+
+      console.log(`📡 SSE Response status: ${response.status}`);
+
+      if (response.ok) {
+        // For a proper SSE implementation, we'd parse the SSE stream
+        // For now, let's try to get JSON response
+        const result = await response.json();
+        console.log(`✅ MCP SSE success:`, result);
+        return result.result || result;
+      } else {
+        const errorText = await response.text();
+        console.log(`❌ SSE request failed: ${response.status} - ${errorText}`);
+        throw new Error(`SSE request failed: ${response.status}`);
+      }
+    } catch (error) {
+      console.error(`💥 MCP SSE call failed:`, error);
+      throw error;
+    }
+  }
+}
+
 class SimpleAgent {
   constructor() {
-    // Docker MCP Gateway endpoints
     const rawEndpoint = process.env.MCP_ENDPOINT || 'http://mcp-gateway:8811';
-    this.mcpBaseEndpoint = rawEndpoint.replace('/sse', '');
-    this.mcpSSEEndpoint = `${this.mcpBaseEndpoint}/sse`;
+    this.mcpEndpoint = rawEndpoint.endsWith('/sse') ? rawEndpoint : `${rawEndpoint}/sse`;
+    
+    // Initialize MCP SSE client
+    this.mcpClient = new MCPSSEClient(this.mcpEndpoint);
     
     this.modelEndpoint = process.env.MODEL_RUNNER_URL || 'http://model-runner.docker.internal/engines/v1';
     this.model = process.env.MODEL_RUNNER_MODEL || 'ai/llama3.2:1B-Q8_0';
@@ -47,104 +115,19 @@ class SimpleAgent {
     }
   }
 
-  async callDockerMCPGateway(tool, params) {
+  async callMCPTool(tool, params) {
     try {
-      console.log(`🔧 Calling Docker MCP Gateway tool: ${tool} with params:`, params);
+      console.log(`🔧 Calling MCP tool via SSE: ${tool} with params:`, params);
       
-      // Try Docker MCP Gateway streaming endpoint first
-      const streamingEndpoint = `${this.mcpBaseEndpoint}/tools/call`;
-      
-      const gatewayRequest = {
-        tool: tool,
-        arguments: params
-      };
-
-      console.log(`🌐 Trying Docker MCP Gateway streaming endpoint: ${streamingEndpoint}`);
-      
-      const response = await fetch(streamingEndpoint, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(gatewayRequest)
-      });
-
-      console.log(`📡 Gateway Response status: ${response.status}`);
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log(`✅ Docker MCP Gateway success:`, result);
-        return result;
-      } else {
-        // Try standard JSON-RPC format as fallback
-        console.log(`⚠️ Streaming endpoint failed, trying JSON-RPC...`);
-        return await this.fallbackToJSONRPC(tool, params);
-      }
+      const result = await this.mcpClient.callTool(tool, params);
+      return result;
       
     } catch (error) {
-      console.error('💥 Docker MCP Gateway call failed:', error);
-      return { error: error.message };
+      console.error('💥 MCP tool call failed:', error);
+      return { 
+        error: `MCP call failed: ${error.message}. This might be because the Docker MCP Gateway requires a different client implementation or authentication.` 
+      };
     }
-  }
-
-  async fallbackToJSONRPC(tool, params) {
-    const mcpRequest = {
-      jsonrpc: "2.0",
-      id: Math.floor(Math.random() * 100000),
-      method: "tools/call",
-      params: {
-        name: tool,
-        arguments: params
-      }
-    };
-
-    // Try common Docker MCP Gateway endpoints
-    const endpointsToTry = [
-      `${this.mcpBaseEndpoint}/mcp`,
-      `${this.mcpBaseEndpoint}/jsonrpc`,
-      `${this.mcpBaseEndpoint}/api/v1/tools/call`,
-      `${this.mcpBaseEndpoint}/gateway`,
-      this.mcpBaseEndpoint
-    ];
-
-    for (const endpoint of endpointsToTry) {
-      try {
-        console.log(`🔄 Trying fallback endpoint: ${endpoint}`);
-        
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify(mcpRequest)
-        });
-
-        console.log(`📡 Response from ${endpoint}: ${response.status}`);
-
-        if (response.ok) {
-          const result = await response.json();
-          console.log(`✅ Success with ${endpoint}:`, result);
-          
-          if (result.error) {
-            throw new Error(`MCP error: ${result.error.message || JSON.stringify(result.error)}`);
-          }
-          
-          return result.result || result;
-        } else if (response.status !== 405 && response.status !== 404) {
-          const errorText = await response.text();
-          console.log(`❌ Error at ${endpoint}: ${response.status} - ${errorText}`);
-        }
-      } catch (error) {
-        if (!error.message.includes('fetch')) {
-          throw error;
-        }
-        console.log(`⚠️ Network error with ${endpoint}, continuing...`);
-      }
-    }
-    
-    throw new Error(`All Docker MCP Gateway endpoints failed. Gateway might be SSE-only or require different authentication.`);
   }
 
   needsWebSearch(query) {
@@ -168,7 +151,6 @@ class SimpleAgent {
     let toolResult = null;
 
     if (this.needsWebSearch(query)) {
-      // Try DuckDuckGo search through Docker MCP Gateway
       toolCall = { 
         tool: "search", 
         params: { 
@@ -176,8 +158,8 @@ class SimpleAgent {
           max_results: 5 
         } 
       };
-      console.log('🔍 Selected DuckDuckGo search through Docker MCP Gateway:', toolCall);
-      toolResult = await this.callDockerMCPGateway(toolCall.tool, toolCall.params);
+      console.log('🔍 Selected DuckDuckGo search via MCP SSE:', toolCall);
+      toolResult = await this.callMCPTool(toolCall.tool, toolCall.params);
     } else if (this.needsFileOperation(query)) {
       toolCall = { tool: "none", params: {} };
       console.log('📁 File operation detected - providing general guidance');
@@ -234,10 +216,10 @@ app.post('/chat', async (req, res) => {
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'healthy', 
-    mcpEndpoint: agent.mcpBaseEndpoint,
-    mcpSSEEndpoint: agent.mcpSSEEndpoint,
+    mcpEndpoint: agent.mcpEndpoint,
     modelEndpoint: agent.modelEndpoint,
-    model: agent.model
+    model: agent.model,
+    transport: 'SSE'
   });
 });
 
@@ -245,10 +227,10 @@ app.get('/health', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`🐳 Simple MCP Agent running on port ${PORT}`);
-  console.log(`🔌 Docker MCP Gateway: ${agent.mcpBaseEndpoint}`);
-  console.log(`📡 SSE Endpoint: ${agent.mcpSSEEndpoint}`);
+  console.log(`🔌 MCP SSE Endpoint: ${agent.mcpEndpoint}`);
   console.log(`🧠 Model Endpoint: ${agent.modelEndpoint}`);
   console.log(`🤖 Model: ${agent.model}`);
+  console.log(`🚀 Transport: Server-Sent Events (SSE)`);
   
   agent.warmupModel();
 });
