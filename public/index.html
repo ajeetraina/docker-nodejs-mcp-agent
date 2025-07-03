@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple MCP Agent</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            width: 90%;
+            max-width: 800px;
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+        
+        .chat-container {
+            height: 400px;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+        
+        .message {
+            margin-bottom: 20px;
+            padding: 15px;
+            border-radius: 15px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        
+        .user-message {
+            background: #007bff;
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+        
+        .agent-message {
+            background: white;
+            border: 1px solid #e9ecef;
+            margin-right: auto;
+        }
+        
+        .tool-info {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-top: 8px;
+            font-style: italic;
+        }
+        
+        .input-container {
+            padding: 20px;
+            background: white;
+            display: flex;
+            gap: 10px;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .input-container input {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 25px;
+            outline: none;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+        
+        .input-container input:focus {
+            border-color: #007bff;
+        }
+        
+        .input-container button {
+            padding: 15px 25px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: transform 0.2s;
+        }
+        
+        .input-container button:hover {
+            transform: translateY(-2px);
+        }
+        
+        .input-container button:disabled {
+            opacity: 0.6;
+            transform: none;
+            cursor: not-allowed;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+        }
+        
+        .loading.show {
+            display: block;
+        }
+        
+        .examples {
+            padding: 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .examples h3 {
+            margin-bottom: 15px;
+            color: #495057;
+            font-size: 1.1rem;
+        }
+        
+        .example-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .example-btn {
+            padding: 8px 15px;
+            background: #e9ecef;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background-color 0.3s;
+        }
+        
+        .example-btn:hover {
+            background: #dee2e6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Simple MCP Agent</h1>
+            <p>Powered by Docker Model Runner & MCP Tools</p>
+        </div>
+        
+        <div class="chat-container" id="chatContainer">
+            <div class="message agent-message">
+                <div>👋 Hello! I'm a simple AI agent that can help you with web searches and file operations using MCP tools.</div>
+                <div class="tool-info">💡 Try asking me to search for something or list files!</div>
+            </div>
+        </div>
+        
+        <div class="loading" id="loading">
+            <div>🧠 Thinking...</div>
+        </div>
+        
+        <div class="input-container">
+            <input type="text" id="messageInput" placeholder="Ask me anything..." maxlength="500">
+            <button onclick="sendMessage()" id="sendButton">Send</button>
+        </div>
+        
+        <div class="examples">
+            <h3>💡 Try these examples:</h3>
+            <div class="example-buttons">
+                <button class="example-btn" onclick="setExample('Search for latest AI news')">🔍 Search AI news</button>
+                <button class="example-btn" onclick="setExample('What is quantum computing?')">🔬 Quantum computing</button>
+                <button class="example-btn" onclick="setExample('List files in current directory')">📁 List files</button>
+                <button class="example-btn" onclick="setExample('Search for Node.js best practices')">⚡ Node.js tips</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isLoading = false;
+
+        function setExample(text) {
+            document.getElementById('messageInput').value = text;
+        }
+
+        function addMessage(content, isUser, toolInfo = null) {
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'agent-message'}`;
+            
+            let messageContent = `<div>${content}</div>`;
+            if (toolInfo) {
+                messageContent += `<div class="tool-info">🔧 Used: ${toolInfo}</div>`;
+            }
+            
+            messageDiv.innerHTML = messageContent;
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function showLoading(show) {
+            isLoading = show;
+            document.getElementById('loading').className = show ? 'loading show' : 'loading';
+            document.getElementById('sendButton').disabled = show;
+            document.getElementById('messageInput').disabled = show;
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message || isLoading) return;
+            
+            addMessage(message, true);
+            input.value = '';
+            showLoading(true);
+            
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    addMessage(`❌ Error: ${data.error}`, false);
+                } else {
+                    const toolInfo = data.toolUsed ? `${data.toolUsed}` : null;
+                    addMessage(data.response, false, toolInfo);
+                }
+            } catch (error) {
+                addMessage(`❌ Connection error: ${error.message}`, false);
+            }
+            
+            showLoading(false);
+        }
+
+        // Enter key support
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !isLoading) {
+                sendMessage();
+            }
+        });
+
+        // Auto-focus input
+        document.getElementById('messageInput').focus();
+    </script>
+</body>
+</html>
