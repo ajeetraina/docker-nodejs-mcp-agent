@@ -37,9 +37,7 @@ services:
 
 models:
   qwen3:
-    # Use smaller, faster model for initial testing
-    model: ai/qwen3:1.5B-Q4_0
-    context_size: 4096
-    # Alternative models to try:
-    # model: ai/llama3.2:1b-instruct-q4_0  # Even smaller
-    # model: ai/qwen3:4B-Q4_0              # Original larger model
+    # Use your already downloaded model
+    model: ai/qwen3:8B-Q4_0
+    context_size: 16384  # Larger context for the 8B model
+    # The 8B model provides better performance than 4B or 1.5B variants
