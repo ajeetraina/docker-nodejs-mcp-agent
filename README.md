@@ -1,16 +1,16 @@
-# 🤖 Simple Node.js MCP Agent
+# Simple Node.js MCP Agent
 
 A super simple AI agent built with Node.js that uses **Model Context Protocol (MCP)** and **Docker Model Runner** for local AI inference.
 
-## ✨ Features
+## Features
 
-- 🧠 **Local AI Models** via Docker Model Runner (qwen3)
-- 🔧 **MCP Tools**: Web search (DuckDuckGo) + File operations  
-- 🌐 **Simple Web UI** for chatting with the agent
-- 🐳 **Docker Compose** setup - just one command to run
+- **Local AI Models** via Docker Model Runner (qwen3)
+- **MCP Tools**: Web search (DuckDuckGo) + File operations  
+- **Simple Web UI** for chatting with the agent
+- **Docker Compose** setup - just one command to run
 - ⚡ **Lightweight** - minimal Node.js implementation
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - **Docker Desktop 4.43.0+** or **Docker Engine** 
@@ -34,14 +34,14 @@ docker compose up --build
 
 That's it! 🎉
 
-## 💬 Try These Examples
+## Try These Examples
 
 - **"Search for latest AI news"** - Uses DuckDuckGo MCP
 - **"List files in current directory"** - Uses filesystem MCP  
 - **"What is quantum computing?"** - Web search + AI reasoning
 - **"Search for Node.js best practices"** - Technical research
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
@@ -57,7 +57,7 @@ That's it! 🎉
                        └─────────────────┘    └─────────────────┘
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 simple-nodejs-mcp-agent/
@@ -71,7 +71,7 @@ simple-nodejs-mcp-agent/
 └── README.md           # This file
 ```
 
-## 🔧 How It Works
+## How It Works
 
 1. **User sends message** via web UI
 2. **Node.js agent** analyzes the request  
@@ -79,7 +79,7 @@ simple-nodejs-mcp-agent/
 4. **Sends context to local AI** model (qwen3)
 5. **Returns intelligent response** to user
 
-## 🛠️ Customization
+## Customization
 
 ### Add More MCP Servers
 Edit `compose.yaml`:
@@ -112,13 +112,13 @@ Then run:
 docker compose -f compose.yaml -f compose.openai.yaml up
 ```
 
-## 🔍 Available MCP Tools
+## Available MCP Tools
 
 - **🔍 search_web**: Search the internet via DuckDuckGo
 - **📁 read_file**: Read files from filesystem  
 - **📋 list_files**: List directory contents
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 **Port 3000 already in use?**
 ```bash
@@ -137,11 +137,11 @@ model: ai/qwen3:1.5B-Q4_0
 - Ensure Docker Desktop has GPU access enabled
 - Or use Docker Offload for cloud inference
 
-## 📜 License
+## License
 
 MIT License - Feel free to use and modify!
 
-## 🎯 Next Steps
+## Next Steps
 
 Want to extend this agent? Try adding:
 - More MCP servers (GitHub, Slack, Postgres)
