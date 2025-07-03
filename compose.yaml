@@ -26,13 +26,11 @@ services:
     use_api_socket: true
     command:
       - --transport=sse
-      # Add any MCP servers you want to use
-      - --servers=duckduckgo,filesystem
-    environment:
-      - FILESYSTEM_ALLOWED_PATHS=/tmp,/app/data
+      # Only use DuckDuckGo for now to avoid filesystem volume issues
+      - --servers=duckduckgo
     volumes:
-      # Mount some sample data for file operations
-      - ./sample-data:/app/data:ro
+      # Mount sample data for future filesystem support
+      - ./sample-data:/mnt/sample-data:ro
 
 models:
   qwen3:
