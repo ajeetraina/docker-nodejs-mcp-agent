@@ -5,8 +5,8 @@ services:
       - "3000:3000"
     environment:
       - MCP_ENDPOINT=http://mcp-gateway:8811/sse
-      - MODEL_RUNNER_URL=${MODEL_RUNNER_URL}
-      - MODEL_RUNNER_MODEL=${MODEL_RUNNER_MODEL}
+      - MODEL_RUNNER_URL=http://host.docker.internal:12434/v1
+      - MODEL_RUNNER_MODEL=qwen3
       - NODE_ENV=production
     depends_on:
       - mcp-gateway
