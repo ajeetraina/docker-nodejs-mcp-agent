@@ -32,8 +32,13 @@ class SimpleAgent {
     try {
       console.log(`Calling MCP tool: ${tool} with params:`, params);
       
-      // Use proper MCP endpoint (remove /sse for POST requests)
-      const mcpBaseEndpoint = this.mcpEndpoint.replace('/sse', '');
+      // Try different endpoints based on common MCP SSE patterns
+      const baseUrl = this.mcpEndpoint.replace('/sse', '');
+      const endpoints = [
+        `${baseUrl}/messages`,  // Common pattern: separate messages endpoint
+        `${baseUrl}`,           // Base endpoint
+        `${baseUrl}/mcp`,       // Alternative MCP endpoint pattern
+      ];
       
       // Use proper MCP protocol over HTTP POST
       const mcpRequest = {
@@ -46,28 +51,39 @@ class SimpleAgent {
         }
       };
 
-      const response = await fetch(mcpBaseEndpoint, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json, text/event-stream'
-        },
-        body: JSON.stringify(mcpRequest)
-      });
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`Trying MCP endpoint: ${endpoint}`);
+          
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Accept': 'application/json, text/event-stream'
+            },
+            body: JSON.stringify(mcpRequest)
+          });
 
-      if (!response.ok) {
-        throw new Error(`MCP call failed: ${response.status} ${response.statusText}`);
+          if (response.ok) {
+            const result = await response.json();
+            console.log(`MCP ${tool} success with endpoint ${endpoint}:`, result);
+            
+            // Handle MCP response format
+            if (result.error) {
+              throw new Error(`MCP error: ${result.error.message || result.error}`);
+            }
+            
+            return result.result || result;
+          } else {
+            console.log(`Failed ${endpoint}: ${response.status} ${response.statusText}`);
+          }
+        } catch (err) {
+          console.log(`Error with ${endpoint}:`, err.message);
+          continue;
+        }
       }
-
-      const result = await response.json();
-      console.log(`MCP ${tool} success:`, result);
       
-      // Handle MCP response format
-      if (result.error) {
-        throw new Error(`MCP error: ${result.error.message || result.error}`);
-      }
-      
-      return result.result || result;
+      throw new Error(`All MCP endpoints failed for tool: ${tool}`);
       
     } catch (error) {
       console.error('MCP call failed:', error);
