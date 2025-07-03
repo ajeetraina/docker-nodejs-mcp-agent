@@ -30,8 +30,8 @@ class SimpleAgent {
 
   async callMCP(tool, params) {
     try {
-      // Use the correct MCP gateway endpoint format
-      const mcpUrl = this.mcpEndpoint.replace('/sse', '/tools/call');
+      // Use the correct MCP gateway REST API endpoint
+      const mcpUrl = this.mcpEndpoint.replace('/sse', '/mcp/tools/call');
       
       const response = await fetch(mcpUrl, {
         method: 'POST',
@@ -40,7 +40,7 @@ class SimpleAgent {
           'Accept': 'application/json'
         },
         body: JSON.stringify({
-          name: tool,
+          tool: tool,
           arguments: params
         })
       });
