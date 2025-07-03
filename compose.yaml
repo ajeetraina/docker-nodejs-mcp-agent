@@ -1,0 +1,44 @@
+services:
+  simple-agent:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - MCP_ENDPOINT=http://mcp-gateway:8811/sse
+      - MODEL_RUNNER_URL=${MODEL_RUNNER_URL}
+      - MODEL_RUNNER_MODEL=${MODEL_RUNNER_MODEL}
+      - NODE_ENV=production
+    depends_on:
+      - mcp-gateway
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    models:
+      qwen3:
+        endpoint_var: MODEL_RUNNER_URL
+        model_var: MODEL_RUNNER_MODEL
+
+  mcp-gateway:
+    # MCP gateway secures your MCP servers
+    image: docker/mcp-gateway:latest
+    use_api_socket: true
+    command:
+      - --transport=sse
+      # Add any MCP servers you want to use
+      - --servers=duckduckgo,filesystem
+      - --allow-insecure-connections
+    environment:
+      - FILESYSTEM_ALLOWED_PATHS=/tmp,/app/data
+    volumes:
+      # Mount some sample data for file operations
+      - ./sample-data:/app/data:ro
+
+models:
+  qwen3:
+    # Pre-pull the model when starting Docker Model Runner
+    model: ai/qwen3:4B-Q4_0
+    context_size: 8192
+    # For more VRAM, use larger context:
+    # context_size: 32768  # ~2GB VRAM
