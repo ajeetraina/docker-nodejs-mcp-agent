@@ -93,14 +93,13 @@ class SimpleAgent {
     }
   }
 
-  // Map search queries to proper DuckDuckGo search tool
+  // Enhanced tool selection logic with correct DuckDuckGo tool names
   needsWebSearch(query) {
-    const searchKeywords = ['search', 'latest', 'current', 'news', 'recent', 'what is', 'how to', 'best practices'];
+    const searchKeywords = ['search', 'latest', 'current', 'news', 'recent', 'what is', 'how to', 'best practices', 'find'];
     const queryLower = query.toLowerCase();
     return searchKeywords.some(keyword => queryLower.includes(keyword));
   }
 
-  // Map file operations to appropriate tools
   needsFileOperation(query) {
     const fileKeywords = ['list files', 'directory', 'folder contents', 'ls', 'dir'];
     const queryLower = query.toLowerCase();
@@ -116,17 +115,22 @@ class SimpleAgent {
     let toolCall;
     let toolResult = null;
 
-    // Enhanced tool selection logic
+    // Enhanced tool selection with correct DuckDuckGo tool names
     if (this.needsWebSearch(query)) {
-      // Use DuckDuckGo search tool
-      toolCall = { tool: "search", params: { query: query, max_results: 5 } };
-      console.log('🔍 Selected web search tool:', toolCall);
+      // Use the correct DuckDuckGo search tool name and parameters
+      toolCall = { 
+        tool: "search", 
+        params: { 
+          query: query, 
+          max_results: 5 
+        } 
+      };
+      console.log('🔍 Selected DuckDuckGo search tool:', toolCall);
       toolResult = await this.callMCP(toolCall.tool, toolCall.params);
     } else if (this.needsFileOperation(query)) {
-      // For file operations, we can simulate or use available tools
-      toolCall = { tool: "search", params: { query: "how to list files in directory command line" } };
-      console.log('📁 Simulating file operation with search:', toolCall);
-      toolResult = await this.callMCP(toolCall.tool, toolCall.params);
+      // For file operations, provide helpful information
+      toolCall = { tool: "none", params: {} };
+      console.log('📁 File operation detected - providing general guidance');
     } else {
       toolCall = { tool: "none", params: {} };
       console.log('💭 No tool needed for this query');
@@ -137,7 +141,7 @@ class SimpleAgent {
     if (toolCall.tool !== 'none' && toolResult && !toolResult.error) {
       responsePrompt = `Query: ${query}\nSearch results: ${JSON.stringify(toolResult).substring(0, 500)}...\nAnswer briefly based on the results:`;
     } else if (toolResult && toolResult.error) {
-      responsePrompt = `Query: ${query}\nNote: Tool search failed (${toolResult.error}). Answer based on your knowledge:`;
+      responsePrompt = `Query: ${query}\nNote: Search failed (${toolResult.error}). Answer based on your knowledge:`;
     } else {
       responsePrompt = `Answer briefly: ${query}`;
     }
