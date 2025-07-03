@@ -15,10 +15,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    models:
-      qwen3:
-        endpoint_var: MODEL_RUNNER_URL
-        model_var: MODEL_RUNNER_MODEL
+    # Remove automatic model management - use custom endpoint instead
 
   mcp-gateway:
     # MCP gateway secures your MCP servers
@@ -32,9 +29,4 @@ services:
       # Mount sample data for future filesystem support
       - ./sample-data:/mnt/sample-data:ro
 
-models:
-  qwen3:
-    # Use your already downloaded model
-    model: ai/qwen3:8B-Q4_0
-    context_size: 16384  # Larger context for the 8B model
-    # The 8B model provides better performance than 4B or 1.5B variants
+# Remove models section to use custom endpoint on port 12434
