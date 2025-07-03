@@ -1,4 +1,4 @@
-// app.js - Simple Node.js MCP Agent
+// app.js - Simple Node.js MCP Agent (Performance Optimized)
 const express = require('express');
 
 const app = express();
@@ -9,7 +9,8 @@ class SimpleAgent {
   constructor() {
     this.mcpEndpoint = process.env.MCP_ENDPOINT || 'http://mcp-gateway:8811/sse';
     this.modelEndpoint = process.env.MODEL_RUNNER_URL || 'http://model-runner.docker.internal/engines/v1';
-    this.model = process.env.MODEL_RUNNER_MODEL || 'ai/qwen3:8B-Q4_0';
+    this.model = process.env.MODEL_RUNNER_MODEL || 'ai/qwen3:1.5B-Q4_0'; // Faster model
+    this.warmupDone = false;
   }
 
   async callModel(prompt, tools = []) {
@@ -20,7 +21,8 @@ class SimpleAgent {
         model: this.model,
         messages: [{ role: 'user', content: prompt }],
         tools: tools,
-        temperature: 0.7
+        temperature: 0.1,  // Lower temperature for faster, more deterministic responses
+        max_tokens: 100    // Limit tokens for speed
       })
     });
     
@@ -28,19 +30,31 @@ class SimpleAgent {
     return data.choices[0].message;
   }
 
+  async warmupModel() {
+    if (!this.warmupDone) {
+      console.log('🔥 Warming up model...');
+      try {
+        await this.callModel('test');
+        this.warmupDone = true;
+        console.log('✅ Model warmed up');
+      } catch (error) {
+        console.log('⚠️ Model warmup failed, will try on first request');
+      }
+    }
+  }
+
   async callMCP(tool, params) {
     try {
       console.log(`Calling MCP tool: ${tool} with params:`, params);
       
-      // Try different endpoints based on common MCP SSE patterns
+      // Quick pattern matching for common endpoints
       const baseUrl = this.mcpEndpoint.replace('/sse', '');
       const endpoints = [
-        `${baseUrl}/messages`,  // Common pattern: separate messages endpoint
-        `${baseUrl}`,           // Base endpoint
-        `${baseUrl}/mcp`,       // Alternative MCP endpoint pattern
+        `${baseUrl}/messages`,
+        `${baseUrl}`,
+        `${baseUrl}/mcp`,
       ];
       
-      // Use proper MCP protocol over HTTP POST
       const mcpRequest = {
         jsonrpc: "2.0",
         id: Date.now(),
@@ -68,7 +82,6 @@ class SimpleAgent {
             const result = await response.json();
             console.log(`MCP ${tool} success with endpoint ${endpoint}:`, result);
             
-            // Handle MCP response format
             if (result.error) {
               throw new Error(`MCP error: ${result.error.message || result.error}`);
             }
@@ -91,61 +104,44 @@ class SimpleAgent {
     }
   }
 
+  // Simplified, faster tool planning
+  needsWebSearch(query) {
+    const searchKeywords = ['search', 'latest', 'current', 'news', 'recent', 'what is', 'how to', 'best practices'];
+    const queryLower = query.toLowerCase();
+    return searchKeywords.some(keyword => queryLower.includes(keyword));
+  }
+
   async processQuery(query) {
     console.log(`Processing query: ${query}`);
 
-    // Step 1: Determine what tools to use
-    const planPrompt = `
-Given this query: "${query}"
+    // Warm up model on first request
+    await this.warmupModel();
 
-Available MCP tools:
-- search_web: Search the web using DuckDuckGo (use for questions needing current information)
+    let toolCall;
+    let toolResult = null;
 
-Respond with just the tool name and parameters in JSON format.
-Example: {"tool": "search_web", "params": {"q": "search terms"}}
+    // Fast keyword-based tool selection (no model call needed!)
+    if (this.needsWebSearch(query)) {
+      toolCall = { tool: "search_web", params: { q: query } };
+      console.log('Fast tool plan:', toolCall);
+      
+      // Try MCP call
+      toolResult = await this.callMCP(toolCall.tool, toolCall.params);
+    } else {
+      toolCall = { tool: "none", params: {} };
+      console.log('Fast tool plan:', toolCall);
+    }
 
-If this is just a greeting or simple question that doesn't need web search, respond with:
-{"tool": "none", "params": {}}
-`;
+    // Generate response with model
+    let responsePrompt;
+    if (toolCall.tool !== 'none' && toolResult && !toolResult.error) {
+      responsePrompt = `Query: ${query}\nSearch results: ${JSON.stringify(toolResult)}\nAnswer briefly:`;
+    } else {
+      responsePrompt = `Answer briefly: ${query}`;
+    }
 
     try {
-      const plan = await this.callModel(planPrompt);
-      let toolCall;
-      
-      try {
-        toolCall = JSON.parse(plan.content);
-      } catch {
-        // Fallback to no tool for simple queries
-        toolCall = { tool: "none", params: {} };
-      }
-
-      console.log('Tool plan:', toolCall);
-
-      let toolResult = null;
-      let finalResponse;
-
-      // Step 2: Execute the MCP tool if needed
-      if (toolCall.tool && toolCall.tool !== 'none') {
-        toolResult = await this.callMCP(toolCall.tool, toolCall.params);
-        
-        // Step 3: Generate final response with tool result
-        const responsePrompt = `
-Query: ${query}
-Tool used: ${toolCall.tool}
-Tool result: ${JSON.stringify(toolResult, null, 2)}
-
-Provide a helpful, concise answer based on the tool result.
-`;
-        finalResponse = await this.callModel(responsePrompt);
-      } else {
-        // Step 3: Generate direct response without tools
-        const responsePrompt = `
-Query: ${query}
-
-Provide a helpful, friendly response. This is a simple question that doesn't require web search or tools.
-`;
-        finalResponse = await this.callModel(responsePrompt);
-      }
+      const finalResponse = await this.callModel(responsePrompt);
       
       return {
         query,
@@ -154,7 +150,6 @@ Provide a helpful, friendly response. This is a simple question that doesn't req
         response: finalResponse.content,
         timestamp: new Date().toISOString()
       };
-
     } catch (error) {
       console.error('Error processing query:', error);
       return {
@@ -188,10 +183,13 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Start server
+// Start server and warm up model
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`🤖 Simple MCP Agent running on port ${PORT}`);
   console.log(`📡 MCP Endpoint: ${agent.mcpEndpoint}`);
   console.log(`🧠 Model Endpoint: ${agent.modelEndpoint}`);
+  
+  // Start warming up model in background
+  agent.warmupModel();
 });
