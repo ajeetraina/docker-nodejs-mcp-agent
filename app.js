@@ -9,7 +9,7 @@ class SimpleAgent {
   constructor() {
     this.mcpEndpoint = process.env.MCP_ENDPOINT || 'http://mcp-gateway:8811/sse';
     this.modelEndpoint = process.env.MODEL_RUNNER_URL || 'http://model-runner.docker.internal/engines/v1';
-    this.model = process.env.MODEL_RUNNER_MODEL || 'ai/qwen3:1.5B-Q4_0'; // Faster model
+    this.model = process.env.MODEL_RUNNER_MODEL || 'ai/llama3.2:1B-Q8_0'; // Optimized model for demos
     this.warmupDone = false;
   }
 
@@ -74,7 +74,7 @@ class SimpleAgent {
             headers: { 
               'Content-Type': 'application/json',
               'Accept': 'application/json, text/event-stream'
-            },
+             },
             body: JSON.stringify(mcpRequest)
           });
 
@@ -187,7 +187,7 @@ app.get('/health', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`🤖 Simple MCP Agent running on port ${PORT}`);
-  console.log(`📡 MCP Endpoint: ${agent.mcpEndpoint}`);
+  console.log(`🔌 MCP Endpoint: ${agent.mcpEndpoint}`);
   console.log(`🧠 Model Endpoint: ${agent.modelEndpoint}`);
   
   // Start warming up model in background
