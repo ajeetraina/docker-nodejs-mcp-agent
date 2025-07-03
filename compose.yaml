@@ -19,20 +19,16 @@ services:
       retries: 3
 
   mcp-gateway:
-    # MCP gateway secures your MCP servers
+    # mcp-gateway secures your MCP servers
     image: docker/mcp-gateway:latest
-    ports:
-      - "8811:8811"
+    use_api_socket: true
     command:
       - --transport=sse
-      # Connect to external DuckDuckGo MCP server (adjust URL as needed)
-      - --servers=duckduckgo:http://host.docker.internal:3001
+      # add any MCP servers you want to use
+      - --servers=duckduckgo
     volumes:
       # Mount sample data for future filesystem support
       - ./sample-data:/mnt/sample-data:ro
-    extra_hosts:
-      # Allow access to host services
-      - "host.docker.internal:host-gateway"
 
 models:
   qwen3:
