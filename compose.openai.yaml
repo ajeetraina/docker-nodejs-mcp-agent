@@ -1,0 +1,17 @@
+# Override for using OpenAI instead of local models
+# Usage: docker compose -f compose.yaml -f compose.openai.yaml up
+
+services:
+  simple-agent:
+    environment:
+      - MODEL_RUNNER_URL=https://api.openai.com/v1
+      - MODEL_RUNNER_MODEL=gpt-4o-mini
+      - OPENAI_API_KEY_FILE=/run/secrets/openai-api-key
+    secrets:
+      - openai-api-key
+    # Remove local model dependency
+    models: {}
+
+secrets:
+  openai-api-key:
+    file: ./secret.openai-api-key
