@@ -1,0 +1,26 @@
+{
+  "name": "simple-nodejs-mcp-agent",
+  "version": "1.0.0",
+  "description": "A super simple Node.js agent using MCP and Docker Model Runner",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "node --watch app.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "eventsource": "^2.0.2"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "docker-model-runner",
+    "ai-agent",
+    "nodejs"
+  ],
+  "author": "Ajeet Singh Raina",
+  "license": "MIT"
+}
