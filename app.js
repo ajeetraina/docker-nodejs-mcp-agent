@@ -1,6 +1,5 @@
 // app.js - Simple Node.js MCP Agent
 const express = require('express');
-const { EventSource } = require('eventsource');
 
 const app = express();
 app.use(express.json());
@@ -31,20 +30,27 @@ class SimpleAgent {
 
   async callMCP(tool, params) {
     try {
-      const response = await fetch(this.mcpEndpoint.replace('/sse', '/call'), {
+      // Use the correct MCP gateway endpoint format
+      const mcpUrl = this.mcpEndpoint.replace('/sse', '/tools/call');
+      
+      const response = await fetch(mcpUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body: JSON.stringify({
-          method: 'tools/call',
-          params: {
-            name: tool,
-            arguments: params
-          }
+          name: tool,
+          arguments: params
         })
       });
       
+      if (!response.ok) {
+        throw new Error(`MCP call failed: ${response.status} ${response.statusText}`);
+      }
+      
       const result = await response.json();
-      return result.result || result;
+      return result;
     } catch (error) {
       console.error('MCP call failed:', error);
       return { error: error.message };
@@ -59,12 +65,13 @@ class SimpleAgent {
 Given this query: "${query}"
 
 Available MCP tools:
-- search_web: Search the web using DuckDuckGo
-- read_file: Read a file from the filesystem
-- list_files: List files in a directory
+- search_web: Search the web using DuckDuckGo (use for questions needing current information)
 
 Respond with just the tool name and parameters in JSON format.
 Example: {"tool": "search_web", "params": {"q": "search terms"}}
+
+If this is just a greeting or simple question that doesn't need web search, respond with:
+{"tool": "none", "params": {}}
 `;
 
     try {
@@ -74,29 +81,41 @@ Example: {"tool": "search_web", "params": {"q": "search terms"}}
       try {
         toolCall = JSON.parse(plan.content);
       } catch {
-        // Fallback to web search if parsing fails
-        toolCall = { tool: "search_web", params: { q: query } };
+        // Fallback to no tool for simple queries
+        toolCall = { tool: "none", params: {} };
       }
 
       console.log('Tool plan:', toolCall);
 
-      // Step 2: Execute the MCP tool
-      const toolResult = await this.callMCP(toolCall.tool, toolCall.params);
-      
-      // Step 3: Generate final response
-      const responsePrompt = `
+      let toolResult = null;
+      let finalResponse;
+
+      // Step 2: Execute the MCP tool if needed
+      if (toolCall.tool && toolCall.tool !== 'none') {
+        toolResult = await this.callMCP(toolCall.tool, toolCall.params);
+        
+        // Step 3: Generate final response with tool result
+        const responsePrompt = `
 Query: ${query}
 Tool used: ${toolCall.tool}
 Tool result: ${JSON.stringify(toolResult, null, 2)}
 
 Provide a helpful, concise answer based on the tool result.
 `;
+        finalResponse = await this.callModel(responsePrompt);
+      } else {
+        // Step 3: Generate direct response without tools
+        const responsePrompt = `
+Query: ${query}
 
-      const finalResponse = await this.callModel(responsePrompt);
+Provide a helpful, friendly response. This is a simple question that doesn't require web search or tools.
+`;
+        finalResponse = await this.callModel(responsePrompt);
+      }
       
       return {
         query,
-        toolUsed: toolCall.tool,
+        toolUsed: toolCall.tool === 'none' ? null : toolCall.tool,
         toolResult: toolResult,
         response: finalResponse.content,
         timestamp: new Date().toISOString()
