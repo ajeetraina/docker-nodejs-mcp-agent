@@ -28,7 +28,6 @@ services:
       - --transport=sse
       # Add any MCP servers you want to use
       - --servers=duckduckgo,filesystem
-      - --allow-insecure-connections
     environment:
       - FILESYSTEM_ALLOWED_PATHS=/tmp,/app/data
     volumes:
