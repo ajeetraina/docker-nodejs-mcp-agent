@@ -8,8 +8,8 @@ app.use(express.static('public'));
 class SimpleAgent {
   constructor() {
     this.mcpEndpoint = process.env.MCP_ENDPOINT || 'http://mcp-gateway:8811/sse';
-    this.modelEndpoint = process.env.MODEL_RUNNER_URL || 'http://localhost:5834/v1';
-    this.model = process.env.MODEL_RUNNER_MODEL || 'qwen3';
+    this.modelEndpoint = process.env.MODEL_RUNNER_URL || 'http://model-runner.docker.internal/engines/v1';
+    this.model = process.env.MODEL_RUNNER_MODEL || 'ai/qwen3:8B-Q4_0';
   }
 
   async callModel(prompt, tools = []) {
@@ -30,44 +30,41 @@ class SimpleAgent {
 
   async callMCP(tool, params) {
     try {
-      // Try different endpoint formats for MCP gateway
-      const baseUrl = this.mcpEndpoint.replace('/sse', '');
-      const endpoints = [
-        `${baseUrl}/tools/${tool}`,
-        `${baseUrl}/api/tools/${tool}`, 
-        `${baseUrl}/call/${tool}`,
-        `${baseUrl}/${tool}`
-      ];
+      console.log(`Calling MCP tool: ${tool} with params:`, params);
       
-      console.log(`Trying MCP tool: ${tool} with params:`, params);
-      
-      for (const endpoint of endpoints) {
-        try {
-          console.log(`Trying endpoint: ${endpoint}`);
-          
-          const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            },
-            body: JSON.stringify(params)
-          });
-          
-          if (response.ok) {
-            const result = await response.json();
-            console.log(`Success with endpoint: ${endpoint}`);
-            return result;
-          } else {
-            console.log(`Failed ${endpoint}: ${response.status} ${response.statusText}`);
-          }
-        } catch (err) {
-          console.log(`Error with ${endpoint}:`, err.message);
-          continue;
+      // Use proper MCP protocol over HTTP POST to SSE endpoint
+      const mcpRequest = {
+        jsonrpc: "2.0",
+        id: Date.now(),
+        method: "tools/call",
+        params: {
+          name: tool,
+          arguments: params
         }
+      };
+
+      const response = await fetch(this.mcpEndpoint, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(mcpRequest)
+      });
+
+      if (!response.ok) {
+        throw new Error(`MCP call failed: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log(`MCP ${tool} success:`, result);
+      
+      // Handle MCP response format
+      if (result.error) {
+        throw new Error(`MCP error: ${result.error.message || result.error}`);
       }
       
-      throw new Error(`All MCP endpoints failed for tool: ${tool}`);
+      return result.result || result;
       
     } catch (error) {
       console.error('MCP call failed:', error);
