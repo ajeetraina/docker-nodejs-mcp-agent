@@ -7,7 +7,7 @@ app.use(express.static('public'));
 
 class SimpleAgent {
   constructor() {
-    this.mcpEndpoint = process.env.MCP_ENDPOINT || 'http://mcp-gateway:8811/sse';
+    this.mcpEndpoint = process.env.MCP_ENDPOINT || 'http://mcp-gateway:8811';
     this.modelEndpoint = process.env.MODEL_RUNNER_URL || 'http://model-runner.docker.internal/engines/v1';
     this.model = process.env.MODEL_RUNNER_MODEL || 'ai/llama3.2:1B-Q8_0'; // Optimized model for demos
     this.warmupDone = false;
@@ -45,19 +45,12 @@ class SimpleAgent {
 
   async callMCP(tool, params) {
     try {
-      console.log(`Calling MCP tool: ${tool} with params:`, params);
+      console.log(`🔧 Calling MCP tool: ${tool} with params:`, params);
       
-      // Quick pattern matching for common endpoints
-      const baseUrl = this.mcpEndpoint.replace('/sse', '');
-      const endpoints = [
-        `${baseUrl}/messages`,
-        `${baseUrl}`,
-        `${baseUrl}/mcp`,
-      ];
-      
+      // MCP JSON-RPC request format
       const mcpRequest = {
         jsonrpc: "2.0",
-        id: Date.now(),
+        id: Math.floor(Math.random() * 100000),
         method: "tools/call",
         params: {
           name: tool,
@@ -65,54 +58,57 @@ class SimpleAgent {
         }
       };
 
-      for (const endpoint of endpoints) {
-        try {
-          console.log(`Trying MCP endpoint: ${endpoint}`);
-          
-          const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Accept': 'application/json, text/event-stream'
-             },
-            body: JSON.stringify(mcpRequest)
-          });
+      console.log(`🌐 Connecting to MCP endpoint: ${this.mcpEndpoint}`);
+      
+      const response = await fetch(this.mcpEndpoint, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(mcpRequest)
+      });
 
-          if (response.ok) {
-            const result = await response.json();
-            console.log(`MCP ${tool} success with endpoint ${endpoint}:`, result);
-            
-            if (result.error) {
-              throw new Error(`MCP error: ${result.error.message || result.error}`);
-            }
-            
-            return result.result || result;
-          } else {
-            console.log(`Failed ${endpoint}: ${response.status} ${response.statusText}`);
-          }
-        } catch (err) {
-          console.log(`Error with ${endpoint}:`, err.message);
-          continue;
+      console.log(`📡 MCP Response status: ${response.status}`);
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log(`✅ MCP ${tool} success:`, result);
+        
+        if (result.error) {
+          throw new Error(`MCP error: ${result.error.message || JSON.stringify(result.error)}`);
         }
+        
+        return result.result;
+      } else {
+        const errorText = await response.text();
+        console.log(`❌ MCP request failed: ${response.status} ${response.statusText}`);
+        console.log(`📄 Response body: ${errorText}`);
+        throw new Error(`MCP request failed: ${response.status} ${response.statusText} - ${errorText}`);
       }
       
-      throw new Error(`All MCP endpoints failed for tool: ${tool}`);
-      
     } catch (error) {
-      console.error('MCP call failed:', error);
+      console.error('💥 MCP call failed:', error);
       return { error: error.message };
     }
   }
 
-  // Simplified, faster tool planning
+  // Map search queries to proper DuckDuckGo search tool
   needsWebSearch(query) {
     const searchKeywords = ['search', 'latest', 'current', 'news', 'recent', 'what is', 'how to', 'best practices'];
     const queryLower = query.toLowerCase();
     return searchKeywords.some(keyword => queryLower.includes(keyword));
   }
 
+  // Map file operations to appropriate tools
+  needsFileOperation(query) {
+    const fileKeywords = ['list files', 'directory', 'folder contents', 'ls', 'dir'];
+    const queryLower = query.toLowerCase();
+    return fileKeywords.some(keyword => queryLower.includes(keyword));
+  }
+
   async processQuery(query) {
-    console.log(`Processing query: ${query}`);
+    console.log(`🎯 Processing query: ${query}`);
 
     // Warm up model on first request
     await this.warmupModel();
@@ -120,22 +116,28 @@ class SimpleAgent {
     let toolCall;
     let toolResult = null;
 
-    // Fast keyword-based tool selection (no model call needed!)
+    // Enhanced tool selection logic
     if (this.needsWebSearch(query)) {
-      toolCall = { tool: "search_web", params: { q: query } };
-      console.log('Fast tool plan:', toolCall);
-      
-      // Try MCP call
+      // Use DuckDuckGo search tool
+      toolCall = { tool: "search", params: { query: query, max_results: 5 } };
+      console.log('🔍 Selected web search tool:', toolCall);
+      toolResult = await this.callMCP(toolCall.tool, toolCall.params);
+    } else if (this.needsFileOperation(query)) {
+      // For file operations, we can simulate or use available tools
+      toolCall = { tool: "search", params: { query: "how to list files in directory command line" } };
+      console.log('📁 Simulating file operation with search:', toolCall);
       toolResult = await this.callMCP(toolCall.tool, toolCall.params);
     } else {
       toolCall = { tool: "none", params: {} };
-      console.log('Fast tool plan:', toolCall);
+      console.log('💭 No tool needed for this query');
     }
 
     // Generate response with model
     let responsePrompt;
     if (toolCall.tool !== 'none' && toolResult && !toolResult.error) {
-      responsePrompt = `Query: ${query}\nSearch results: ${JSON.stringify(toolResult)}\nAnswer briefly:`;
+      responsePrompt = `Query: ${query}\nSearch results: ${JSON.stringify(toolResult).substring(0, 500)}...\nAnswer briefly based on the results:`;
+    } else if (toolResult && toolResult.error) {
+      responsePrompt = `Query: ${query}\nNote: Tool search failed (${toolResult.error}). Answer based on your knowledge:`;
     } else {
       responsePrompt = `Answer briefly: ${query}`;
     }
@@ -151,7 +153,7 @@ class SimpleAgent {
         timestamp: new Date().toISOString()
       };
     } catch (error) {
-      console.error('Error processing query:', error);
+      console.error('❌ Error processing query:', error);
       return {
         query,
         error: error.message,
@@ -179,16 +181,18 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'healthy', 
     mcpEndpoint: agent.mcpEndpoint,
-    modelEndpoint: agent.modelEndpoint 
+    modelEndpoint: agent.modelEndpoint,
+    model: agent.model
   });
 });
 
 // Start server and warm up model
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`🤖 Simple MCP Agent running on port ${PORT}`);
+  console.log(`🐳 Simple MCP Agent running on port ${PORT}`);
   console.log(`🔌 MCP Endpoint: ${agent.mcpEndpoint}`);
   console.log(`🧠 Model Endpoint: ${agent.modelEndpoint}`);
+  console.log(`🤖 Model: ${agent.model}`);
   
   // Start warming up model in background
   agent.warmupModel();
