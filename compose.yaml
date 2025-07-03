@@ -25,13 +25,14 @@ services:
       - "8811:8811"
     command:
       - --transport=sse
-      # Only use DuckDuckGo for now to avoid filesystem volume issues
-      - --servers=duckduckgo
+      # Connect to external DuckDuckGo MCP server (adjust URL as needed)
+      - --servers=duckduckgo:http://host.docker.internal:3001
     volumes:
-      # Mount Docker socket for container management
-      - /var/run/docker.sock:/var/run/docker.sock
       # Mount sample data for future filesystem support
       - ./sample-data:/mnt/sample-data:ro
+    extra_hosts:
+      # Allow access to host services
+      - "host.docker.internal:host-gateway"
 
 models:
   qwen3:
