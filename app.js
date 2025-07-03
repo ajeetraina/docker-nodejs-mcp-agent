@@ -32,7 +32,10 @@ class SimpleAgent {
     try {
       console.log(`Calling MCP tool: ${tool} with params:`, params);
       
-      // Use proper MCP protocol over HTTP POST to SSE endpoint
+      // Use proper MCP endpoint (remove /sse for POST requests)
+      const mcpBaseEndpoint = this.mcpEndpoint.replace('/sse', '');
+      
+      // Use proper MCP protocol over HTTP POST
       const mcpRequest = {
         jsonrpc: "2.0",
         id: Date.now(),
@@ -43,11 +46,11 @@ class SimpleAgent {
         }
       };
 
-      const response = await fetch(this.mcpEndpoint, {
+      const response = await fetch(mcpBaseEndpoint, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'application/json, text/event-stream'
         },
         body: JSON.stringify(mcpRequest)
       });
