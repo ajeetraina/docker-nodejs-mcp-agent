@@ -30,27 +30,45 @@ class SimpleAgent {
 
   async callMCP(tool, params) {
     try {
-      // Use the correct MCP gateway REST API endpoint
-      const mcpUrl = this.mcpEndpoint.replace('/sse', '/mcp/tools/call');
+      // Try different endpoint formats for MCP gateway
+      const baseUrl = this.mcpEndpoint.replace('/sse', '');
+      const endpoints = [
+        `${baseUrl}/tools/${tool}`,
+        `${baseUrl}/api/tools/${tool}`, 
+        `${baseUrl}/call/${tool}`,
+        `${baseUrl}/${tool}`
+      ];
       
-      const response = await fetch(mcpUrl, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-          tool: tool,
-          arguments: params
-        })
-      });
+      console.log(`Trying MCP tool: ${tool} with params:`, params);
       
-      if (!response.ok) {
-        throw new Error(`MCP call failed: ${response.status} ${response.statusText}`);
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`Trying endpoint: ${endpoint}`);
+          
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify(params)
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            console.log(`Success with endpoint: ${endpoint}`);
+            return result;
+          } else {
+            console.log(`Failed ${endpoint}: ${response.status} ${response.statusText}`);
+          }
+        } catch (err) {
+          console.log(`Error with ${endpoint}:`, err.message);
+          continue;
+        }
       }
       
-      const result = await response.json();
-      return result;
+      throw new Error(`All MCP endpoints failed for tool: ${tool}`);
+      
     } catch (error) {
       console.error('MCP call failed:', error);
       return { error: error.message };
