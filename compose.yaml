@@ -5,11 +5,13 @@ services:
       - "3000:3000"
     environment:
       - MCP_ENDPOINT=http://mcp-gateway:8811/sse
-      - MODEL_RUNNER_URL=http://host.docker.internal:12434/v1
-      - MODEL_RUNNER_MODEL=qwen3
       - NODE_ENV=production
     depends_on:
       - mcp-gateway
+    models:
+      qwen3:
+        endpoint_var: MODEL_RUNNER_URL
+        model_var: MODEL_RUNNER_MODEL
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
       interval: 30s
@@ -29,8 +31,13 @@ services:
       # Mount sample data for future filesystem support
       - ./sample-data:/mnt/sample-data:ro
 
-# Alternative: Use Docker Compose 2.38+ models syntax (requires Docker Model Runner)
-# Uncomment the following to use the new models feature instead of custom endpoint:
+models:
+  qwen3:
+    model: ai/qwen3:8B-Q4_0
+    context_size: 16384  # Increased for 8B model capabilities
+
+# Legacy approach using environment variables (for Docker Compose < 2.38)
+# Uncomment the following and comment out the models sections above:
 #
 # services:
 #   simple-agent:
@@ -39,20 +46,13 @@ services:
 #       - "3000:3000"
 #     environment:
 #       - MCP_ENDPOINT=http://mcp-gateway:8811/sse
+#       - MODEL_RUNNER_URL=http://host.docker.internal:12434/v1
+#       - MODEL_RUNNER_MODEL=ai/qwen3:8B-Q4_0
 #       - NODE_ENV=production
 #     depends_on:
 #       - mcp-gateway
-#     models:
-#       qwen3:
-#         endpoint_var: MODEL_RUNNER_URL
-#         model_var: MODEL_RUNNER_MODEL
 #     healthcheck:
 #       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
 #       interval: 30s
 #       timeout: 10s
 #       retries: 3
-# 
-# models:
-#   qwen3:
-#     model: ai/qwen3:1.5B-Q4_0
-#     context_size: 10000
