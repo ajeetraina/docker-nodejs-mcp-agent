@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:20-slim
 
 WORKDIR /app
 
@@ -8,20 +8,15 @@ COPY package*.json ./
 # Install dependencies
 RUN npm ci --only=production
 
-# Copy application code
+# Copy source code
 COPY . .
 
 # Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001 && \
-    chown -R nodejs:nodejs /app
+RUN useradd --create-home --shell /bin/bash app && \
+    chown -R app:app /app
 
-USER nodejs
+USER app
 
 EXPOSE 3000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "fetch('http://localhost:3000/health').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"
 
 CMD ["npm", "start"]
