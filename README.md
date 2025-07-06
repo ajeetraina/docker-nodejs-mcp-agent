@@ -2,8 +2,6 @@
 
 An AI agent built with Node.js using Model Context Protocol (MCP) and Docker Model Runner for local AI inference.
 
-> **✨ Now using simplified pattern by default!** This repository has been streamlined with security-hardened Dockerfile, clean configuration, and production-ready setup. See `SIMPLIFIED_PATTERN.md` for comparison details.
-
 ## Quick Start
 
 ```bash
@@ -58,8 +56,8 @@ This project follows the standard 4-layer pattern used across the ecosystem:
 By default, this project uses Docker Model Runner to handle LLM inference locally — after initial setup, no external API keys are required. 
 The agent can operate offline for basic AI responses, though web search features require internet connectivity.
 
-### Environment Variables used in this example
-- `MCP_GATEWAY_URL`: MCP Gateway endpoint (standard naming)
+### Environment Variables
+- `MCP_GATEWAY_URL`: MCP Gateway endpoint (default: http://mcp-gateway:8811)
 - `MODEL_RUNNER_URL`: Docker Model Runner API endpoint
 - `MODEL_RUNNER_MODEL`: Model identifier for inference
 - `PORT`: Application server port (default: 3000)
@@ -80,7 +78,7 @@ cd simple-nodejs-mcp-agent
 docker compose up --build
 ```
 
-### For cloud-based GPU resources 
+### Cloud-based GPU Resources
 
 For cloud-based GPU resources with larger models (requires 16+ GB VRAM):
 ```bash
@@ -88,12 +86,12 @@ docker compose -f compose.yaml -f compose.offload.yaml up --build
 ```
 
 **Benefits:**
-- Uses `ai/gemma3:27B-Q4_K_M` (15.5GB) for enhanced reasoning
+- Uses `ai/gemma3:27B-Q4_K_M` for enhanced reasoning
 - Larger context window (8192 tokens) for complex queries
 - Automatic cloud GPU provisioning when local resources insufficient
 - Seamless scaling from development to production workloads
 
-### For OpenAI
+### OpenAI Integration
 
 If you'd prefer to use OpenAI instead:
 
@@ -153,23 +151,20 @@ The agent implements comprehensive error handling:
 simple-nodejs-mcp-agent/
 ├── app.js                    # Main application server
 ├── package.json              # Node.js dependencies
-├── Dockerfile               # Streamlined container config
-├── compose.yaml             # Simplified deployment
+├── Dockerfile               # Container configuration
+├── compose.yaml             # Standard deployment
 ├── compose.openai.yaml      # Cloud model override
 ├── compose.offload.yaml     # Docker Offload with larger model
 ├── public/index.html        # Web interface
-├── SIMPLIFIED_PATTERN.md    # Pattern documentation
+├── TECHNICAL_FLOW.md        # System flow documentation
 └── README.md               # Documentation
 ```
 
-## Simplified Pattern Benefits
+## Features
 
-This repository now uses the simplified pattern by default:
-
-- ✅ **50% faster builds** with optimized Dockerfile
-- ✅ **50% smaller images** with single-stage build  
-- ✅ **Enhanced security** with non-root user
-- ✅ **60% fewer configuration lines**
-- ✅ **Easier maintenance** with cleaner patterns
-
-See `SIMPLIFIED_PATTERN.md` for detailed comparison and migration information.
+- ✅ **Security-hardened** with non-root user
+- ✅ **Production-optimized** Docker builds
+- ✅ **Clean configuration** with minimal dependencies
+- ✅ **Graceful error handling** and fallback strategies
+- ✅ **Multiple deployment options** (local, cloud, OpenAI)
+- ✅ **Real-time web interface** with example queries
