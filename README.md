@@ -85,10 +85,16 @@ docker compose up --build
 ```
 
 ### Docker Offload for GPU Workloads
-For cloud-based GPU resources when local GPU is unavailable:
+For cloud-based GPU resources with larger models (requires 16+ GB VRAM):
 ```bash
 docker compose -f compose.yaml -f compose.offload.yaml up --build
 ```
+
+**Docker Offload benefits:**
+- Uses `ai/gemma3:27B-Q4_K_M` (15.5GB) for enhanced reasoning
+- Larger context window (8192 tokens) for complex queries
+- Automatic cloud GPU provisioning when local resources insufficient
+- Seamless scaling from development to production workloads
 
 ### Cloud Model Alternative
 For environments without GPU resources:
@@ -128,10 +134,18 @@ The agent implements comprehensive error handling:
 
 ## Performance Characteristics
 
-- **Cold Start**: Initial model loading requires 30-60 seconds
-- **Warm Inference**: Subsequent queries process in 2-5 seconds
-- **Memory Usage**: Approximately 4GB for gemma3-qat model
-- **Concurrent Users**: Supports multiple simultaneous requests
+### Local Development (gemma3-qat)
+- **Cold Start**: 30-60 seconds
+- **Warm Inference**: 2-5 seconds
+- **Memory Usage**: ~4GB
+- **Context Window**: 8192 tokens
+
+### Docker Offload (gemma3:27B)
+- **Cold Start**: 60-120 seconds
+- **Warm Inference**: 3-8 seconds  
+- **Memory Usage**: ~16GB VRAM
+- **Context Window**: 8192 tokens (expandable to 16384)
+- **Enhanced Reasoning**: Better complex query handling
 
 ## Development
 
@@ -143,7 +157,7 @@ simple-nodejs-mcp-agent/
 ├── Dockerfile               # Container configuration
 ├── compose.yaml             # Standard deployment
 ├── compose.openai.yaml      # Cloud model override
-├── compose.offload.yaml     # Docker Offload GPU support
+├── compose.offload.yaml     # Docker Offload with larger model
 ├── public/index.html        # Web interface
 ├── TECHNICAL_FLOW.md        # System flow documentation
 └── README.md               # Documentation
