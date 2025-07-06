@@ -1,10 +1,16 @@
-# Override for using Docker Offload with larger models for GPU-intensive workloads
+# Override for using Docker Offload with larger models
 # Usage: docker compose -f compose.yaml -f compose.offload.yaml up --build
 
+services:
+  app:
+    # Override with larger model configuration
+    models:
+      gemma-large:
+        endpoint_var: MODEL_RUNNER_URL
+        model_var: MODEL_RUNNER_MODEL
+
 models:
-  # Override the base gemma model with a larger model for better performance
-  gemma:
-    model: ai/gemma3:27B-Q4_K_M # ~15.5 GB (vs 4GB base model)
-    context_size: 8192 # 16 GB VRAM
-    # For more complex reasoning (requires more VRAM):
-    # context_size: 16384 # 20 GB VRAM
+  gemma-large:
+    # Larger model for enhanced reasoning (requires 16+ GB VRAM)
+    model: ai/gemma3:27B-Q4_K_M
+    context_size: 8192
