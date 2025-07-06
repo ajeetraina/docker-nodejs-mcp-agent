@@ -1,0 +1,12 @@
+# Override for using Docker Offload for GPU-intensive workloads
+# Usage: docker compose -f compose.yaml -f compose.offload.yaml up
+
+services:
+  app:
+    x-docker-offload:
+      - gpu
+
+models:
+  gemma:
+    x-docker-offload:
+      - gpu
