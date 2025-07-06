@@ -39,8 +39,8 @@ This project follows the standard 4-layer Agentic Compose architecture pattern u
 
 ## Configuration
 
-By default, this project uses Docker Model Runner to handle LLM inference locally — no internet connection or external API key is required.
-
+By default, this project uses Docker Model Runner to handle LLM inference locally — after initial setup, no external API keys are required. 
+The agent can operate offline for basic AI responses, though web search features require internet connectivity.
 
 
 ### Environment Variables used in this example
