@@ -1,8 +1,5 @@
 # Simple Node.js MCP Agent
 
-![image](https://github.com/user-attachments/assets/8780aecb-a227-4da5-8abd-e11ad3fbe38b)
-
-
 A production-ready AI agent built with Node.js that implements the Agentic Compose pattern using Model Context Protocol (MCP) and Docker Model Runner for local AI inference.
 
 ## Architecture
@@ -87,6 +84,12 @@ cd simple-nodejs-mcp-agent
 docker compose up --build
 ```
 
+### Docker Offload for GPU Workloads
+For cloud-based GPU resources when local GPU is unavailable:
+```bash
+docker compose -f compose.yaml -f compose.offload.yaml up --build
+```
+
 ### Cloud Model Alternative
 For environments without GPU resources:
 ```bash
@@ -130,50 +133,6 @@ The agent implements comprehensive error handling:
 - **Memory Usage**: Approximately 4GB for gemma3-qat model
 - **Concurrent Users**: Supports multiple simultaneous requests
 
-## Compatibility
-
-This implementation is compatible with other Agentic Compose frameworks:
-- Spring AI MCP demonstrations
-- CrewAI multi-agent systems
-- LangGraph workflow implementations
-- ADK agent development kit
-
-All use identical configuration patterns and architectural principles.
-
-## Troubleshooting
-
-### Common Issues
-
-**Model API 404 Errors**
-- Verify Docker Model Runner is enabled
-- Check model endpoint configuration
-- Ensure gemma3-qat model is available
-
-**MCP Gateway Connection Failures**
-- Confirm `use_api_socket: true` setting
-- Verify gateway container is running
-- Check port 8811 availability
-
-**Performance Issues**
-- Ensure adequate GPU resources
-- Consider using smaller models for development
-- Monitor Docker resource allocation
-
-### Diagnostic Commands
-```bash
-# Check service status
-docker compose ps
-
-# View application logs
-docker compose logs app
-
-# Test model runner
-curl http://localhost:11434/api/tags
-
-# Verify MCP gateway
-curl http://localhost:8811/health
-```
-
 ## Development
 
 ### Project Structure
@@ -184,23 +143,12 @@ simple-nodejs-mcp-agent/
 ├── Dockerfile               # Container configuration
 ├── compose.yaml             # Standard deployment
 ├── compose.openai.yaml      # Cloud model override
+├── compose.offload.yaml     # Docker Offload GPU support
 ├── public/index.html        # Web interface
+├── TECHNICAL_FLOW.md        # System flow documentation
 └── README.md               # Documentation
 ```
-
-### Extension Points
-
-The agent can be extended with additional capabilities:
-- Additional MCP servers (GitHub, Slack, PostgreSQL)
-- Custom tool implementations
-- Multi-agent coordination
-- Conversation memory and context persistence
-- Authentication and authorization layers
 
 ## License
 
 MIT License - See LICENSE file for details
-
-## Contributing
-
-Contributions are welcome. Please ensure all changes maintain compatibility with the standard Agentic Compose pattern.
