@@ -39,30 +39,11 @@ This project follows the standard 4-layer Agentic Compose architecture pattern u
 
 ## Configuration
 
-### Standard Agentic Compose Pattern
-```yaml
-services:
-  app:
-    environment:
-      - MCP_GATEWAY_URL=http://mcp-gateway:8811
-    models:
-      gemma:
-        endpoint_var: MODEL_RUNNER_URL
-        model_var: MODEL_RUNNER_MODEL
+By default, this project uses Docker Model Runner to handle LLM inference locally — no internet connection or external API key is required.
 
-  mcp-gateway:
-    image: docker/mcp-gateway:latest
-    use_api_socket: true
-    command:
-      - --transport=sse
-      - --servers=duckduckgo
 
-models:
-  gemma:
-    model: ai/gemma3-qat
-```
 
-### Environment Variables
+### Environment Variables used in this example
 - `MCP_GATEWAY_URL`: MCP Gateway endpoint (standard naming)
 - `MODEL_RUNNER_URL`: Docker Model Runner API endpoint
 - `MODEL_RUNNER_MODEL`: Model identifier for inference
@@ -163,6 +144,4 @@ simple-nodejs-mcp-agent/
 └── README.md               # Documentation
 ```
 
-## License
 
-MIT License - See LICENSE file for details
