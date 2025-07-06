@@ -119,9 +119,9 @@ class SimpleAgent {
     // Initialize MCP SSE client
     this.mcpClient = new MCPSSEClient(this.mcpEndpoint);
     
-    // Fixed: Better model endpoint configuration
+    // Fixed: Better Docker Model Runner endpoint handling
     this.modelEndpoint = process.env.MODEL_RUNNER_URL || 'http://model-runner.docker.internal:11434/v1';
-    this.model = process.env.MODEL_RUNNER_MODEL || 'ai/gemma3:4B-Q4_0';
+    this.model = process.env.MODEL_RUNNER_MODEL || 'ai/gemma3-qat';
     this.warmupDone = false;
     
     console.log(`🔧 Configuration:`);
@@ -131,10 +131,22 @@ class SimpleAgent {
   }
 
   async callModel(prompt, tools = []) {
-    // Ensure endpoint has proper format for chat completions
-    const endpoint = this.modelEndpoint.endsWith('/v1') 
-      ? `${this.modelEndpoint}/chat/completions`
-      : `${this.modelEndpoint}/engines/v1/chat/completions`;
+    // Fixed: Proper endpoint construction for Docker Model Runner
+    let endpoint;
+    if (this.modelEndpoint.includes('openai.com')) {
+      // OpenAI endpoint
+      endpoint = `${this.modelEndpoint}/chat/completions`;
+    } else {
+      // Docker Model Runner - normalize the endpoint
+      const baseEndpoint = this.modelEndpoint.replace(/\/+$/, ''); // Remove trailing slashes
+      if (baseEndpoint.includes('/engines/v1') || baseEndpoint.includes('/v1')) {
+        // Already has proper path structure
+        endpoint = `${baseEndpoint}/chat/completions`;
+      } else {
+        // Need to add v1 path
+        endpoint = `${baseEndpoint}/v1/chat/completions`;
+      }
+    }
       
     console.log(`🤖 Calling model at: ${endpoint}`);
     
@@ -148,24 +160,36 @@ class SimpleAgent {
         headers['Authorization'] = `Bearer ${process.env.OPENAI_API_KEY}`;
       }
       
+      const requestBody = {
+        model: this.model,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.1,
+        max_tokens: 500
+      };
+      
+      // Only add tools if using OpenAI (local models may not support tools parameter)
+      if (this.modelEndpoint.includes('openai.com') && tools.length > 0) {
+        requestBody.tools = tools;
+      }
+      
+      console.log(`📤 Request body:`, JSON.stringify(requestBody, null, 2));
+      
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: headers,
-        body: JSON.stringify({
-          model: this.model,
-          messages: [{ role: 'user', content: prompt }],
-          tools: tools,
-          temperature: 0.1,
-          max_tokens: 500
-        })
+        body: JSON.stringify(requestBody)
       });
+      
+      console.log(`📡 Model API response status: ${response.status}`);
       
       if (!response.ok) {
         const errorText = await response.text();
+        console.error(`❌ Model API error details:`, errorText);
         throw new Error(`Model API error: ${response.status} - ${errorText}`);
       }
       
       const data = await response.json();
+      console.log(`✅ Model response received, choices: ${data.choices?.length}`);
       return data.choices[0].message;
     } catch (error) {
       console.error('❌ Model call failed:', error);
@@ -177,7 +201,7 @@ class SimpleAgent {
     if (!this.warmupDone) {
       console.log('🔥 Warming up model...');
       try {
-        await this.callModel('test');
+        await this.callModel('Hello');
         this.warmupDone = true;
         console.log('✅ Model warmed up');
       } catch (error) {
@@ -293,7 +317,7 @@ app.get('/health', (req, res) => {
     modelEndpoint: agent.modelEndpoint,
     model: agent.model,
     transport: 'SSE',
-    note: 'Attempting to connect to Docker MCP Gateway via SSE transport'
+    note: 'Following standard Agentic Compose pattern'
   });
 });
 
@@ -309,13 +333,13 @@ process.on('SIGTERM', () => {
 // Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`🐳 Simple MCP Agent running on port ${PORT}`);
+  console.log(`🐳 Simple MCP Agent running on port 3000`);
   console.log(`🔌 MCP Base Endpoint: ${agent.mcpEndpoint}`);
   console.log(`📡 MCP SSE Endpoint: ${agent.mcpEndpoint}/sse`);
   console.log(`🧠 Model Endpoint: ${agent.modelEndpoint}`);
   console.log(`🤖 Model: ${agent.model}`);
   console.log(`🚀 Transport: Server-Sent Events (SSE)`);
-  console.log(`ℹ️  Note: If MCP calls fail, the agent will fall back to model knowledge`);
+  console.log(`ℹ️  Note: Following standard Agentic Compose pattern`);
   
   agent.warmupModel();
 });
