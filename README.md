@@ -65,20 +65,23 @@ cd simple-nodejs-mcp-agent
 docker compose up --build
 ```
 
-### Docker Offload for GPU Workloads
+### For cloud-based GPU resources 
+
 For cloud-based GPU resources with larger models (requires 16+ GB VRAM):
 ```bash
 docker compose -f compose.yaml -f compose.offload.yaml up --build
 ```
 
-**Docker Offload benefits:**
+**Benefits:**
 - Uses `ai/gemma3:27B-Q4_K_M` (15.5GB) for enhanced reasoning
 - Larger context window (8192 tokens) for complex queries
 - Automatic cloud GPU provisioning when local resources insufficient
 - Seamless scaling from development to production workloads
 
-### Cloud Model Alternative
-For environments without GPU resources:
+### For OpenAI
+
+If you’d prefer to use OpenAI instead:
+
 ```bash
 echo "your-openai-api-key" > secret.openai-api-key
 docker compose -f compose.yaml -f compose.openai.yaml up
