@@ -6,12 +6,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
       - PORT=3000
       - MCP_GATEWAY_URL=http://mcp-gateway:8811
-      # Fixed: Docker Model Runner uses port 11434 and /v1 endpoint
-      - MODEL_RUNNER_URL=http://model-runner.docker.internal:12434/v1
-      - MODEL_RUNNER_MODEL=ai/gemma3-qat
     depends_on:
       - mcp-gateway
     models:
