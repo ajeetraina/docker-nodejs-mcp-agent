@@ -1,4 +1,4 @@
-// app.js - Simple Node.js MCP Agent (Real SSE Implementation)
+// app.js - A Simple Node.js MCP Agent (Real SSE Implementation)
 const express = require('express');
 
 const app = express();
