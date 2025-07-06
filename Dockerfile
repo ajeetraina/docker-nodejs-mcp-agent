@@ -1,4 +1,4 @@
-# Simplified Dockerfile following streamlined pattern
+# Production-ready Node.js Dockerfile
 FROM node:20-slim
 
 WORKDIR /app
@@ -20,6 +20,5 @@ USER app
 
 EXPOSE 3000
 
-# Simple startup - no complex entrypoint script needed
-# Model switching is handled in application code
+# Simple startup - model switching handled in application code
 CMD ["npm", "start"]
