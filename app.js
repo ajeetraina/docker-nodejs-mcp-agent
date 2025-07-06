@@ -120,7 +120,7 @@ class SimpleAgent {
     this.mcpClient = new MCPSSEClient(this.mcpEndpoint);
     
     // Fixed: Better Docker Model Runner endpoint handling
-    this.modelEndpoint = process.env.MODEL_RUNNER_URL || 'http://model-runner.docker.internal:11434/v1';
+    this.modelEndpoint = process.env.MODEL_RUNNER_URL || 'http://model-runner.docker.internal:12434/v1';
     this.model = process.env.MODEL_RUNNER_MODEL || 'ai/gemma3-qat';
     this.warmupDone = false;
     
