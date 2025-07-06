@@ -1,4 +1,4 @@
-# Simplified compose.yaml following streamlined pattern
+# Docker Compose configuration for Simple Node.js MCP Agent
 services:
   app:
     build:
@@ -28,7 +28,7 @@ services:
       - --servers=duckduckgo
       - --tools=search,fetch_content
 
-# Single model configuration - simple and focused
+# Model configuration
 models:
   gemma:
     model: ai/gemma3-qat
