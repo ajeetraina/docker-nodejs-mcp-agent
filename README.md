@@ -1,6 +1,6 @@
 # Simple Node.js MCP Agent
 
-A production-ready AI agent built with Node.js that implements the Agentic Compose pattern using Model Context Protocol (MCP) and Docker Model Runner for local AI inference.
+An AI agent built with Node.js that implements the Agentic Compose pattern using Model Context Protocol (MCP) and Docker Model Runner for local AI inference.
 
 ## Architecture
 
