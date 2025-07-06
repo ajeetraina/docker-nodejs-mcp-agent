@@ -18,7 +18,7 @@ class MCPSSEClient {
   async connect() {
     if (this.connected) return;
     
-    console.log(`🔌 Establishing SSE connection to: ${this.sseEndpoint}`);
+    console.log(`Establishing SSE connection to: ${this.sseEndpoint}`);
     
     try {
       // First, establish SSE connection
@@ -30,17 +30,17 @@ class MCPSSEClient {
         }
       });
 
-      console.log(`📡 SSE connection response: ${response.status}`);
+      console.log(`SSE connection response: ${response.status}`);
       
       if (!response.ok) {
         throw new Error(`Failed to establish SSE connection: ${response.status}`);
       }
 
       this.connected = true;
-      console.log(`✅ SSE connection established`);
+      console.log(`SSE connection established`);
       
     } catch (error) {
-      console.error(`❌ Failed to connect to SSE endpoint:`, error);
+      console.error(`Failed to connect to SSE endpoint:`, error);
       throw error;
     }
   }
@@ -60,7 +60,7 @@ class MCPSSEClient {
     };
 
     try {
-      console.log(`📤 Sending MCP message to base endpoint:`, message);
+      console.log(`Sending MCP message to base endpoint:`, message);
       
       // Send JSON-RPC message to base endpoint (not /sse)
       const response = await fetch(this.baseEndpoint, {
@@ -72,11 +72,11 @@ class MCPSSEClient {
         body: JSON.stringify(message)
       });
 
-      console.log(`📡 Message response status: ${response.status}`);
+      console.log(`Message response status: ${response.status}`);
 
       if (response.ok) {
         const result = await response.json();
-        console.log(`✅ MCP call success:`, result);
+        console.log(`MCP call success:`, result);
         
         if (result.error) {
           throw new Error(`MCP error: ${result.error.message || JSON.stringify(result.error)}`);
@@ -85,7 +85,7 @@ class MCPSSEClient {
         return result.result || result;
       } else {
         const errorText = await response.text();
-        console.log(`❌ MCP call failed: ${response.status} - ${errorText}`);
+        console.log(`MCP call failed: ${response.status} - ${errorText}`);
         
         // If still getting 405, the gateway might require a different approach
         if (response.status === 405) {
@@ -95,7 +95,7 @@ class MCPSSEClient {
         throw new Error(`MCP call failed: ${response.status} - ${errorText}`);
       }
     } catch (error) {
-      console.error(`💥 MCP tool call failed:`, error);
+      console.error(`MCP tool call failed:`, error);
       throw error;
     }
   }
@@ -106,7 +106,7 @@ class MCPSSEClient {
       this.eventSource = null;
     }
     this.connected = false;
-    console.log(`🔌 SSE connection closed`);
+    console.log(`SSE connection closed`);
   }
 }
 
@@ -124,7 +124,7 @@ class SimpleAgent {
     this.model = process.env.MODEL_RUNNER_MODEL || 'ai/gemma3-qat';
     this.warmupDone = false;
     
-    console.log(`🔧 Configuration:`);
+    console.log(`Configuration:`);
     console.log(`   MCP Endpoint: ${this.mcpEndpoint}`);
     console.log(`   Model Endpoint: ${this.modelEndpoint}`);
     console.log(`   Model: ${this.model}`);
@@ -148,7 +148,7 @@ class SimpleAgent {
       }
     }
       
-    console.log(`🤖 Calling model at: ${endpoint}`);
+    console.log(`Calling model at: ${endpoint}`);
     
     try {
       const headers = { 
@@ -172,7 +172,7 @@ class SimpleAgent {
         requestBody.tools = tools;
       }
       
-      console.log(`📤 Request body:`, JSON.stringify(requestBody, null, 2));
+      console.log(`Request body:`, JSON.stringify(requestBody, null, 2));
       
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -180,45 +180,45 @@ class SimpleAgent {
         body: JSON.stringify(requestBody)
       });
       
-      console.log(`📡 Model API response status: ${response.status}`);
+      console.log(`Model API response status: ${response.status}`);
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`❌ Model API error details:`, errorText);
+        console.error(`Model API error details:`, errorText);
         throw new Error(`Model API error: ${response.status} - ${errorText}`);
       }
       
       const data = await response.json();
-      console.log(`✅ Model response received, choices: ${data.choices?.length}`);
+      console.log(`Model response received, choices: ${data.choices?.length}`);
       return data.choices[0].message;
     } catch (error) {
-      console.error('❌ Model call failed:', error);
+      console.error('Model call failed:', error);
       throw error;
     }
   }
 
   async warmupModel() {
     if (!this.warmupDone) {
-      console.log('🔥 Warming up model...');
+      console.log('Warming up model...');
       try {
         await this.callModel('Hello');
         this.warmupDone = true;
-        console.log('✅ Model warmed up');
+        console.log('Model warmed up');
       } catch (error) {
-        console.log('⚠️ Model warmup failed, will try on first request:', error.message);
+        console.log('Model warmup failed, will try on first request:', error.message);
       }
     }
   }
 
   async callMCPTool(tool, params) {
     try {
-      console.log(`🔧 Calling MCP tool: ${tool} with params:`, params);
+      console.log(`Calling MCP tool: ${tool} with params:`, params);
       
       const result = await this.mcpClient.callTool(tool, params);
       return result;
       
     } catch (error) {
-      console.error('💥 MCP tool call failed:', error);
+      console.error('MCP tool call failed:', error);
       return { 
         error: `MCP call failed: ${error.message}\n\nTroubleshooting tips:\n1. Check if Docker MCP Gateway is properly configured\n2. Verify the gateway is running in the correct transport mode\n3. The gateway might require specific client authentication\n4. Try using the official Docker Desktop MCP integration instead` 
       };
@@ -238,7 +238,7 @@ class SimpleAgent {
   }
 
   async processQuery(query) {
-    console.log(`🎯 Processing query: ${query}`);
+    console.log(`Processing query: ${query}`);
 
     await this.warmupModel();
 
@@ -253,14 +253,14 @@ class SimpleAgent {
           max_results: 5 
         } 
       };
-      console.log('🔍 Selected DuckDuckGo search via MCP SSE:', toolCall);
+      console.log('Selected DuckDuckGo search via MCP SSE:', toolCall);
       toolResult = await this.callMCPTool(toolCall.tool, toolCall.params);
     } else if (this.needsFileOperation(query)) {
       toolCall = { tool: "none", params: {} };
-      console.log('📁 File operation detected - providing general guidance');
+      console.log('File operation detected - providing general guidance');
     } else {
       toolCall = { tool: "none", params: {} };
-      console.log('💭 No tool needed for this query');
+      console.log('No tool needed for this query');
     }
 
     // Generate response with model
@@ -285,7 +285,7 @@ class SimpleAgent {
         note: toolResult && toolResult.error ? "Search tools are currently unavailable. Response based on model knowledge." : null
       };
     } catch (error) {
-      console.error('❌ Error processing query:', error);
+      console.error('Error processing query:', error);
       return {
         query,
         error: error.message,
@@ -323,7 +323,7 @@ app.get('/health', (req, res) => {
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('🛑 Shutting down gracefully...');
+  console.log('Shutting down gracefully...');
   if (agent.mcpClient) {
     agent.mcpClient.disconnect();
   }
@@ -333,13 +333,13 @@ process.on('SIGTERM', () => {
 // Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`🐳 Simple MCP Agent running on port 3000`);
-  console.log(`🔌 MCP Base Endpoint: ${agent.mcpEndpoint}`);
-  console.log(`📡 MCP SSE Endpoint: ${agent.mcpEndpoint}/sse`);
-  console.log(`🧠 Model Endpoint: ${agent.modelEndpoint}`);
-  console.log(`🤖 Model: ${agent.model}`);
-  console.log(`🚀 Transport: Server-Sent Events (SSE)`);
-  console.log(`ℹ️  Note: Following standard Agentic Compose pattern`);
+  console.log(`Simple MCP Agent running on port 3000`);
+  console.log(`MCP Base Endpoint: ${agent.mcpEndpoint}`);
+  console.log(`MCP SSE Endpoint: ${agent.mcpEndpoint}/sse`);
+  console.log(`Model Endpoint: ${agent.modelEndpoint}`);
+  console.log(`Model: ${agent.model}`);
+  console.log(`Transport: Server-Sent Events (SSE)`);
+  console.log(`Note: Following standard Agentic Compose pattern`);
   
   agent.warmupModel();
 });
