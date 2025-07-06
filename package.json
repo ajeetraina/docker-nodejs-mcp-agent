@@ -2,10 +2,10 @@
   "name": "simple-nodejs-mcp-agent",
   "version": "1.0.0",
   "description": "A simple AI agent built with Node.js that uses Model Context Protocol (MCP)",
-  "main": "server.js",
+  "main": "app.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js"
+    "start": "node app.js",
+    "dev": "node --watch app.js"
   },
   "keywords": ["mcp", "ai", "agent", "nodejs", "docker"],
   "author": "Ajeet Singh Raina",
