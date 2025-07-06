@@ -112,32 +112,65 @@ class MCPSSEClient {
 
 class SimpleAgent {
   constructor() {
-    const rawEndpoint = process.env.MCP_ENDPOINT || 'http://mcp-gateway:8811';
+    // Fixed: Use correct environment variable name with fallback
+    const rawEndpoint = process.env.MCP_ENDPOINT || process.env.MCP_GATEWAY_URL || 'http://mcp-gateway:8811';
     this.mcpEndpoint = rawEndpoint.replace('/sse', '');
     
     // Initialize MCP SSE client
     this.mcpClient = new MCPSSEClient(this.mcpEndpoint);
     
-    this.modelEndpoint = process.env.MODEL_RUNNER_URL || 'http://model-runner.docker.internal/engines/v1';
-    this.model = process.env.MODEL_RUNNER_MODEL || 'ai/llama3.2:1B-Q8_0';
+    // Fixed: Better model endpoint configuration
+    this.modelEndpoint = process.env.MODEL_RUNNER_URL || 'http://model-runner.docker.internal:11434/v1';
+    this.model = process.env.MODEL_RUNNER_MODEL || 'ai/gemma3:4B-Q4_0';
     this.warmupDone = false;
+    
+    console.log(`🔧 Configuration:`);
+    console.log(`   MCP Endpoint: ${this.mcpEndpoint}`);
+    console.log(`   Model Endpoint: ${this.modelEndpoint}`);
+    console.log(`   Model: ${this.model}`);
   }
 
   async callModel(prompt, tools = []) {
-    const response = await fetch(`${this.modelEndpoint}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: this.model,
-        messages: [{ role: 'user', content: prompt }],
-        tools: tools,
-        temperature: 0.1,
-        max_tokens: 100
-      })
-    });
+    // Ensure endpoint has proper format for chat completions
+    const endpoint = this.modelEndpoint.endsWith('/v1') 
+      ? `${this.modelEndpoint}/chat/completions`
+      : `${this.modelEndpoint}/engines/v1/chat/completions`;
+      
+    console.log(`🤖 Calling model at: ${endpoint}`);
     
-    const data = await response.json();
-    return data.choices[0].message;
+    try {
+      const headers = { 
+        'Content-Type': 'application/json'
+      };
+      
+      // Add authorization header if using OpenAI
+      if (this.modelEndpoint.includes('openai.com') && process.env.OPENAI_API_KEY) {
+        headers['Authorization'] = `Bearer ${process.env.OPENAI_API_KEY}`;
+      }
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+          model: this.model,
+          messages: [{ role: 'user', content: prompt }],
+          tools: tools,
+          temperature: 0.1,
+          max_tokens: 500
+        })
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Model API error: ${response.status} - ${errorText}`);
+      }
+      
+      const data = await response.json();
+      return data.choices[0].message;
+    } catch (error) {
+      console.error('❌ Model call failed:', error);
+      throw error;
+    }
   }
 
   async warmupModel() {
@@ -148,7 +181,7 @@ class SimpleAgent {
         this.warmupDone = true;
         console.log('✅ Model warmed up');
       } catch (error) {
-        console.log('⚠️ Model warmup failed, will try on first request');
+        console.log('⚠️ Model warmup failed, will try on first request:', error.message);
       }
     }
   }
