@@ -2,7 +2,7 @@
 # Usage: docker compose -f compose.yaml -f compose.openai.yaml up
 
 services:
-  simple-agent:
+  app:  # Fixed: consistent service name
     environment:
       - MODEL_RUNNER_URL=https://api.openai.com/v1
       - MODEL_RUNNER_MODEL=gpt-4o-mini
