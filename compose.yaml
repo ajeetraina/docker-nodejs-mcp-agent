@@ -1,3 +1,4 @@
+# Simplified compose.yaml following streamlined pattern
 services:
   app:
     build:
@@ -16,15 +17,18 @@ services:
         model_var: MODEL_RUNNER_MODEL
 
   mcp-gateway:
+    # Standard MCP Gateway configuration
     image: docker/mcp-gateway:latest
     use_api_socket: true
     ports:
       - "8811:8811"
     command:
       - --transport=sse
+      # Add any MCP servers you want to use
       - --servers=duckduckgo
       - --tools=search,fetch_content
 
+# Single model configuration - simple and focused
 models:
   gemma:
     model: ai/gemma3-qat
