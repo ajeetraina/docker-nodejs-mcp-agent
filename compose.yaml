@@ -8,12 +8,11 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - MCP_ENDPOINT=http://mcp-gateway:8811  # Fixed: matches app.js expectation
-      - MODEL_RUNNER_URL=${MODEL_RUNNER_URL:-}  # Will be set by models section
-      - MODEL_RUNNER_MODEL=${MODEL_RUNNER_MODEL:-}  # Will be set by models section
+      - MCP_GATEWAY_URL=http://mcp-gateway:8811  # Fixed: Back to standard naming
+      - MODEL_RUNNER_URL=${MODEL_RUNNER_URL:-}  
+      - MODEL_RUNNER_MODEL=${MODEL_RUNNER_MODEL:-}  
     depends_on:
       - mcp-gateway
-      - gemma  # Ensure model is ready
     models:
       gemma:
         endpoint_var: MODEL_RUNNER_URL
@@ -21,6 +20,7 @@ services:
 
   mcp-gateway:
     image: docker/mcp-gateway:latest
+    use_api_socket: true  # Fixed: Added missing API socket configuration
     ports:
       - "8811:8811"
     command:
@@ -30,5 +30,4 @@ services:
 
 models:
   gemma:
-    model: ai/gemma3:4B-Q4_0
-    context_size: 8192
+    model: ai/gemma3-qat  # Fixed: Use same model as Spring AI for consistency
