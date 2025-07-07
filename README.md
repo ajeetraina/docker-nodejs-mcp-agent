@@ -12,7 +12,7 @@ docker compose up --build
 echo "your-api-key" > secret.openai-api-key
 docker compose -f compose.yaml -f compose.openai.yaml up
 
-# With larger models (Docker Offload)
+# With larger models 
 docker compose -f compose.yaml -f compose.offload.yaml up --build
 ```
 
@@ -56,11 +56,6 @@ This project follows the standard 4-layer pattern used across the ecosystem:
 By default, this project uses Docker Model Runner to handle LLM inference locally — after initial setup, no external API keys are required. 
 The agent can operate offline for basic AI responses, though web search features require internet connectivity.
 
-### Environment Variables
-- `MCP_GATEWAY_URL`: MCP Gateway endpoint (default: http://mcp-gateway:8811)
-- `MODEL_RUNNER_URL`: Docker Model Runner API endpoint
-- `MODEL_RUNNER_MODEL`: Model identifier for inference
-- `PORT`: Application server port (default: 3000)
 
 ## Prerequisites
 
@@ -137,34 +132,11 @@ The agent implements comprehensive error handling:
 - **Memory Usage**: ~4GB
 - **Context Window**: 8192 tokens
 
-### Docker Offload (gemma3:27B)
+
+### Over the Cloud (gemma3:27B)
 - **Cold Start**: 60-120 seconds
 - **Warm Inference**: 3-8 seconds  
 - **Memory Usage**: ~16GB VRAM
 - **Context Window**: 8192 tokens (expandable to 16384)
 - **Enhanced Reasoning**: Better complex query handling
 
-## Development
-
-### Project Structure
-```
-simple-nodejs-mcp-agent/
-├── app.js                    # Main application server
-├── package.json              # Node.js dependencies
-├── Dockerfile               # Container configuration
-├── compose.yaml             # Standard deployment
-├── compose.openai.yaml      # Cloud model override
-├── compose.offload.yaml     # Docker Offload with larger model
-├── public/index.html        # Web interface
-├── TECHNICAL_FLOW.md        # System flow documentation
-└── README.md               # Documentation
-```
-
-## Features
-
-- ✅ **Security-hardened** with non-root user
-- ✅ **Production-optimized** Docker builds
-- ✅ **Clean configuration** with minimal dependencies
-- ✅ **Graceful error handling** and fallback strategies
-- ✅ **Multiple deployment options** (local, cloud, OpenAI)
-- ✅ **Real-time web interface** with example queries
