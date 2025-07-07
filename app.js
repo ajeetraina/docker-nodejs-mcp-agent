@@ -1,4 +1,4 @@
-// Enhanced app.js with comprehensive monitoring integration
+// Enhanced app.js with fixed MCP client implementation
 const express = require('express');
 const http = require('http');
 const path = require('path');
@@ -15,69 +15,18 @@ app.use(monitor.requestMonitoring());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Enhanced MCPSSEClient with monitoring
-class MCPSSEClient {
-  constructor(baseEndpoint, monitor) {
-    this.baseEndpoint = baseEndpoint.replace('/sse', '');
-    this.sseEndpoint = `${this.baseEndpoint}/sse`;
-    this.connected = false;
-    this.messageId = 1;
-    this.pendingRequests = new Map();
-    this.eventSource = null;
+// Simplified MCP Client that follows proper MCP protocol
+class MCPClient {
+  constructor(baseUrl, monitor) {
+    this.baseUrl = baseUrl.replace('/sse', '');
     this.monitor = monitor;
-  }
-
-  async connect() {
-    if (this.connected) return;
-    
-    console.log(`Establishing SSE connection to: ${this.sseEndpoint}`);
-    this.monitor.logActivity('MCP_CONNECT_START', {
-      endpoint: this.sseEndpoint,
-      timestamp: new Date().toISOString()
-    });
-    
-    try {
-      const response = await fetch(this.sseEndpoint, {
-        method: 'GET',
-        headers: {
-          'Accept': 'text/event-stream',
-          'Cache-Control': 'no-cache'
-        }
-      });
-
-      console.log(`SSE connection response: ${response.status}`);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to establish SSE connection: ${response.status}`);
-      }
-
-      this.connected = true;
-      console.log(`SSE connection established`);
-      
-      this.monitor.updateHealthStatus('mcp', 'healthy', {
-        endpoint: this.sseEndpoint,
-        connected: true
-      });
-      
-      this.monitor.logActivity('MCP_CONNECT_SUCCESS', {
-        endpoint: this.sseEndpoint,
-        timestamp: new Date().toISOString()
-      });
-      
-    } catch (error) {
-      console.error(`Failed to connect to SSE endpoint:`, error);
-      this.monitor.updateHealthStatus('mcp', 'error', {
-        endpoint: this.sseEndpoint,
-        error: error.message
-      });
-      throw error;
-    }
+    this.requestId = 1;
   }
 
   async callTool(toolName, params) {
-    await this.connect();
+    const requestId = this.requestId++;
     
-    const requestId = this.messageId++;
+    // Standard MCP JSON-RPC 2.0 message format
     const message = {
       jsonrpc: "2.0",
       id: requestId,
@@ -93,40 +42,25 @@ class MCPSSEClient {
     const startTime = Date.now();
 
     try {
-      console.log(`Sending MCP message to base endpoint:`, message);
+      console.log(`[MCP] Calling tool ${toolName} at ${this.baseUrl}`);
+      console.log(`[MCP] Request:`, JSON.stringify(message, null, 2));
       
-      const response = await fetch(this.baseEndpoint, {
+      const response = await fetch(this.baseUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'User-Agent': 'simple-nodejs-mcp-agent/1.0'
         },
         body: JSON.stringify(message)
       });
 
-      console.log(`Message response status: ${response.status}`);
       const responseTime = Date.now() - startTime;
+      console.log(`[MCP] Response status: ${response.status}`);
 
-      if (response.ok) {
-        const result = await response.json();
-        console.log(`MCP call success:`, result);
-        
-        if (result.error) {
-          tracker.end(false, responseTime, result.error);
-          this.monitor.updateHealthStatus('mcp', 'warning', {
-            lastError: result.error,
-            tool: toolName
-          });
-          throw new Error(`MCP error: ${result.error.message || JSON.stringify(result.error)}`);
-        }
-        
-        tracker.end(true, responseTime, result.result || result);
-        this.monitor.updateHealthStatus('mcp', 'healthy');
-        
-        return result.result || result;
-      } else {
+      if (!response.ok) {
         const errorText = await response.text();
-        console.log(`MCP call failed: ${response.status} - ${errorText}`);
+        console.error(`[MCP] Error response:`, errorText);
         
         tracker.end(false, responseTime, { status: response.status, error: errorText });
         this.monitor.updateHealthStatus('mcp', 'error', {
@@ -135,12 +69,34 @@ class MCPSSEClient {
           tool: toolName
         });
         
+        // Provide more specific error messages based on status code
         if (response.status === 405) {
-          throw new Error(`Method not allowed. The Docker MCP Gateway might require a different client implementation or authentication. Check gateway configuration.`);
+          throw new Error(`Method Not Allowed - MCP Gateway doesn't accept POST requests to ${this.baseUrl}. The gateway might be configured differently or require a different endpoint.`);
+        } else if (response.status === 404) {
+          throw new Error(`Not Found - MCP Gateway endpoint ${this.baseUrl} doesn't exist. Check if the gateway is running and the URL is correct.`);
+        } else if (response.status === 403) {
+          throw new Error(`Forbidden - Access denied to MCP Gateway. Check authentication or permissions.`);
+        } else {
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
-        
-        throw new Error(`MCP call failed: ${response.status} - ${errorText}`);
       }
+
+      const result = await response.json();
+      console.log(`[MCP] Response:`, JSON.stringify(result, null, 2));
+
+      if (result.error) {
+        tracker.end(false, responseTime, result.error);
+        this.monitor.updateHealthStatus('mcp', 'warning', {
+          lastError: result.error,
+          tool: toolName
+        });
+        throw new Error(`MCP Error: ${result.error.message || JSON.stringify(result.error)}`);
+      }
+
+      tracker.end(true, responseTime, result.result || result);
+      this.monitor.updateHealthStatus('mcp', 'healthy');
+      
+      return result.result || result;
     } catch (error) {
       const responseTime = Date.now() - startTime;
       tracker.end(false, responseTime, null);
@@ -148,41 +104,63 @@ class MCPSSEClient {
         error: error.message,
         tool: toolName
       });
-      console.error(`MCP tool call failed:`, error);
+      console.error(`[MCP] Tool call failed:`, error.message);
       throw error;
     }
   }
 
-  disconnect() {
-    if (this.eventSource) {
-      this.eventSource.close();
-      this.eventSource = null;
+  async testConnection() {
+    try {
+      console.log(`[MCP] Testing connection to ${this.baseUrl}`);
+      
+      // Try a simple health check first
+      const healthResponse = await fetch(`${this.baseUrl}/health`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      if (healthResponse.ok) {
+        const health = await healthResponse.json();
+        console.log(`[MCP] Health check passed:`, health);
+        return true;
+      }
+      
+      // If no health endpoint, try the base endpoint
+      const baseResponse = await fetch(this.baseUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      console.log(`[MCP] Base endpoint response: ${baseResponse.status}`);
+      return baseResponse.status !== 404;
+      
+    } catch (error) {
+      console.error(`[MCP] Connection test failed:`, error.message);
+      return false;
     }
-    this.connected = false;
-    console.log(`SSE connection closed`);
-    this.monitor.logActivity('MCP_DISCONNECT', {
-      timestamp: new Date().toISOString()
-    });
   }
 }
 
-// Enhanced SimpleAgent with monitoring
+// Enhanced SimpleAgent with fixed MCP client
 class SimpleAgent {
   constructor() {
     const rawEndpoint = process.env.MCP_ENDPOINT || process.env.MCP_GATEWAY_URL || 'http://mcp-gateway:8811';
     this.mcpEndpoint = rawEndpoint.replace('/sse', '');
     
-    // Initialize MCP SSE client with monitoring
-    this.mcpClient = new MCPSSEClient(this.mcpEndpoint, monitor);
+    // Initialize simplified MCP client
+    this.mcpClient = new MCPClient(this.mcpEndpoint, monitor);
     
     this.modelEndpoint = process.env.MODEL_RUNNER_URL || 'http://model-runner.docker.internal:12434/v1';
     this.model = process.env.MODEL_RUNNER_MODEL || 'ai/gemma3-qat';
     this.warmupDone = false;
     
-    console.log(`Configuration:`);
-    console.log(`   MCP Endpoint: ${this.mcpEndpoint}`);
-    console.log(`   Model Endpoint: ${this.modelEndpoint}`);
-    console.log(`   Model: ${this.model}`);
+    console.log(`[CONFIG] MCP Endpoint: ${this.mcpEndpoint}`);
+    console.log(`[CONFIG] Model Endpoint: ${this.modelEndpoint}`);
+    console.log(`[CONFIG] Model: ${this.model}`);
     
     // Update initial health status
     monitor.updateHealthStatus('app', 'healthy', {
@@ -205,7 +183,7 @@ class SimpleAgent {
       }
     }
       
-    console.log(`Calling model at: ${endpoint}`);
+    console.log(`[MODEL] Calling model at: ${endpoint}`);
     
     // Start monitoring the model call
     const tracker = monitor.trackModelCall(this.model, prompt);
@@ -230,7 +208,7 @@ class SimpleAgent {
         requestBody.tools = tools;
       }
       
-      console.log(`Request body:`, JSON.stringify(requestBody, null, 2));
+      console.log(`[MODEL] Request body:`, JSON.stringify(requestBody, null, 2));
       
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -238,11 +216,11 @@ class SimpleAgent {
         body: JSON.stringify(requestBody)
       });
       
-      console.log(`Model API response status: ${response.status}`);
+      console.log(`[MODEL] Response status: ${response.status}`);
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`Model API error details:`, errorText);
+        console.error(`[MODEL] Error:`, errorText);
         tracker.end(false, { status: response.status, error: errorText });
         monitor.updateHealthStatus('model', 'error', {
           status: response.status,
@@ -253,7 +231,7 @@ class SimpleAgent {
       }
       
       const data = await response.json();
-      console.log(`Model response received, choices: ${data.choices?.length}`);
+      console.log(`[MODEL] Response received, choices: ${data.choices?.length}`);
       
       const result = data.choices[0].message;
       tracker.end(true, result);
@@ -270,7 +248,7 @@ class SimpleAgent {
       
       return result;
     } catch (error) {
-      console.error('Model call failed:', error);
+      console.error('[MODEL] Call failed:', error);
       tracker.end(false, null);
       monitor.updateHealthStatus('model', 'error', {
         error: error.message,
@@ -282,7 +260,7 @@ class SimpleAgent {
 
   async warmupModel() {
     if (!this.warmupDone) {
-      console.log('Warming up model...');
+      console.log('[MODEL] Warming up...');
       monitor.logActivity('MODEL_WARMUP_START', {
         model: this.model,
         timestamp: new Date().toISOString()
@@ -291,13 +269,13 @@ class SimpleAgent {
       try {
         await this.callModel('Hello');
         this.warmupDone = true;
-        console.log('Model warmed up');
+        console.log('[MODEL] Warmed up successfully');
         monitor.logActivity('MODEL_WARMUP_SUCCESS', {
           model: this.model,
           timestamp: new Date().toISOString()
         });
       } catch (error) {
-        console.log('Model warmup failed, will try on first request:', error.message);
+        console.log('[MODEL] Warmup failed, will try on first request:', error.message);
         monitor.logActivity('MODEL_WARMUP_FAILED', {
           model: this.model,
           error: error.message,
@@ -307,15 +285,44 @@ class SimpleAgent {
     }
   }
 
+  async testMCPConnection() {
+    try {
+      console.log('[MCP] Testing connection...');
+      const isConnected = await this.mcpClient.testConnection();
+      if (isConnected) {
+        console.log('[MCP] Connection test passed');
+        monitor.updateHealthStatus('mcp', 'healthy', {
+          endpoint: this.mcpEndpoint,
+          connected: true
+        });
+        return true;
+      } else {
+        console.log('[MCP] Connection test failed');
+        monitor.updateHealthStatus('mcp', 'warning', {
+          endpoint: this.mcpEndpoint,
+          connected: false
+        });
+        return false;
+      }
+    } catch (error) {
+      console.error('[MCP] Connection test error:', error.message);
+      monitor.updateHealthStatus('mcp', 'error', {
+        endpoint: this.mcpEndpoint,
+        error: error.message
+      });
+      return false;
+    }
+  }
+
   async callMCPTool(tool, params) {
     try {
-      console.log(`Calling MCP tool: ${tool} with params:`, params);
+      console.log(`[MCP] Calling tool: ${tool} with params:`, params);
       const result = await this.mcpClient.callTool(tool, params);
       return result;
     } catch (error) {
-      console.error('MCP tool call failed:', error);
+      console.error('[MCP] Tool call failed:', error.message);
       return { 
-        error: `MCP call failed: ${error.message}\n\nTroubleshooting tips:\n1. Check if Docker MCP Gateway is properly configured\n2. Verify the gateway is running in the correct transport mode\n3. The gateway might require specific client authentication\n4. Try using the official Docker Desktop MCP integration instead` 
+        error: `MCP call failed: ${error.message}\n\nTroubleshooting tips:\n1. Check if MCP Gateway is running: docker compose ps\n2. Check MCP Gateway logs: docker compose logs mcp-gateway\n3. Verify gateway configuration in compose.yaml\n4. Ensure network connectivity between services\n5. Try restarting the services: docker compose restart` 
       };
     }
   }
@@ -333,13 +340,15 @@ class SimpleAgent {
   }
 
   async processQuery(query) {
-    console.log(`Processing query: ${query}`);
+    console.log(`[QUERY] Processing: ${query}`);
     
     monitor.logActivity('QUERY_START', {
       query,
       timestamp: new Date().toISOString()
     });
 
+    // Test MCP connection first
+    await this.testMCPConnection();
     await this.warmupModel();
 
     let toolCall;
@@ -353,7 +362,7 @@ class SimpleAgent {
           max_results: 5 
         } 
       };
-      console.log('Selected DuckDuckGo search via MCP SSE:', toolCall);
+      console.log('[TOOL] Selected DuckDuckGo search via MCP:', toolCall);
       monitor.logActivity('TOOL_SELECTED', {
         tool: 'search',
         reason: 'search_keywords_detected',
@@ -362,7 +371,7 @@ class SimpleAgent {
       toolResult = await this.callMCPTool(toolCall.tool, toolCall.params);
     } else if (this.needsFileOperation(query)) {
       toolCall = { tool: "none", params: {} };
-      console.log('File operation detected - providing general guidance');
+      console.log('[TOOL] File operation detected - providing general guidance');
       monitor.logActivity('TOOL_SELECTED', {
         tool: 'none',
         reason: 'file_operation_detected',
@@ -370,7 +379,7 @@ class SimpleAgent {
       });
     } else {
       toolCall = { tool: "none", params: {} };
-      console.log('No tool needed for this query');
+      console.log('[TOOL] No tool needed for this query');
       monitor.logActivity('TOOL_SELECTED', {
         tool: 'none',
         reason: 'no_tool_needed',
@@ -409,7 +418,7 @@ class SimpleAgent {
       
       return result;
     } catch (error) {
-      console.error('Error processing query:', error);
+      console.error('[QUERY] Error processing query:', error);
       monitor.logActivity('QUERY_ERROR', {
         query,
         error: error.message,
@@ -439,15 +448,16 @@ app.post('/chat', async (req, res) => {
   res.json(result);
 });
 
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+  const mcpConnected = await agent.testMCPConnection();
+  
   const healthData = {
     status: 'healthy', 
     mcpEndpoint: agent.mcpEndpoint,
-    mcpSSEEndpoint: `${agent.mcpEndpoint}/sse`,
+    mcpConnected: mcpConnected,
     modelEndpoint: agent.modelEndpoint,
     model: agent.model,
-    transport: 'SSE',
-    note: 'Following standard Agentic Compose pattern with monitoring',
+    timestamp: new Date().toISOString(),
     monitoring: monitor.getMetrics()
   };
   
@@ -470,6 +480,25 @@ app.post('/monitoring/reset', (req, res) => {
   res.json({ message: 'Monitoring metrics reset' });
 });
 
+// Test MCP connection endpoint
+app.get('/test-mcp', async (req, res) => {
+  try {
+    const isConnected = await agent.testMCPConnection();
+    res.json({ 
+      connected: isConnected,
+      endpoint: agent.mcpEndpoint,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      error: error.message,
+      connected: false,
+      endpoint: agent.mcpEndpoint,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Serve monitoring dashboard
 app.get('/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
@@ -480,14 +509,10 @@ const wss = createMonitoringWebSocketServer(server, monitor);
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('Shutting down gracefully...');
+  console.log('[SERVER] Shutting down gracefully...');
   monitor.logActivity('SHUTDOWN_START', {
     timestamp: new Date().toISOString()
   });
-  
-  if (agent.mcpClient) {
-    agent.mcpClient.disconnect();
-  }
   
   if (wss) {
     wss.close();
@@ -499,21 +524,23 @@ process.on('SIGTERM', () => {
 // Start server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', async () => {
-  console.log(`Simple MCP Agent with monitoring running on port ${PORT}`);
-  console.log(`Dashboard available at: http://localhost:${PORT}/dashboard`);
-  console.log(`Metrics API at: http://localhost:${PORT}/metrics`);
-  console.log(`MCP Base Endpoint: ${agent.mcpEndpoint}`);
-  console.log(`MCP SSE Endpoint: ${agent.mcpEndpoint}/sse`);
-  console.log(`Model Endpoint: ${agent.modelEndpoint}`);
-  console.log(`Model: ${agent.model}`);
-  console.log(`Transport: Server-Sent Events (SSE)`);
-  console.log(`WebSocket monitoring enabled on same port`);
+  console.log(`[SERVER] Simple MCP Agent with monitoring running on port ${PORT}`);
+  console.log(`[SERVER] Dashboard: http://localhost:${PORT}/dashboard`);
+  console.log(`[SERVER] Metrics API: http://localhost:${PORT}/metrics`);
+  console.log(`[SERVER] Health Check: http://localhost:${PORT}/health`);
+  console.log(`[SERVER] Test MCP: http://localhost:${PORT}/test-mcp`);
+  console.log(`[CONFIG] MCP Endpoint: ${agent.mcpEndpoint}`);
+  console.log(`[CONFIG] Model Endpoint: ${agent.modelEndpoint}`);
+  console.log(`[CONFIG] Model: ${agent.model}`);
+  console.log(`[CONFIG] WebSocket monitoring enabled`);
   
   monitor.logActivity('SERVER_START', {
     port: PORT,
     timestamp: new Date().toISOString()
   });
   
+  // Test connections on startup
+  await agent.testMCPConnection();
   agent.warmupModel();
 });
 
