@@ -62,8 +62,8 @@ class MCPMonitor extends EventEmitter {
         timestamp: new Date().toISOString()
       });
 
-      // Override res.json to capture response
-      const originalJson = res.json;
+      // Override res.json to capture response - Fixed version
+      const originalJson = res.json.bind(res);
       res.json = (data) => {
         const responseTime = Date.now() - startTime;
         
@@ -94,7 +94,7 @@ class MCPMonitor extends EventEmitter {
           success: res.statusCode >= 200 && res.statusCode < 400
         });
         
-        return originalJson.call(this, data);
+        return originalJson(data);
       };
       
       next();
@@ -260,7 +260,7 @@ class MCPMonitor extends EventEmitter {
       modelSuccessRate: this.calculateModelSuccessRate(),
       averageMCPResponseTime: this.calculateAverageMCPResponseTime(),
       averageModelResponseTime: this.calculateAverageModelResponseTime(),
-      recentActivity: this.recentActivity.slice(-20) // Last 20 activities
+      recentActivity: this.recentActivity.slice(-20)
     };
   }
 

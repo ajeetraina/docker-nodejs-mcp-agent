@@ -7,17 +7,24 @@
     "start": "node app.js",
     "dev": "node --watch app.js"
   },
-  "keywords": ["mcp", "ai", "agent", "nodejs", "docker"],
+  "keywords": [
+    "mcp",
+    "ai",
+    "agent",
+    "nodejs",
+    "docker"
+  ],
   "author": "Ajeet Singh Raina",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.19.2",
     "cors": "^2.8.5",
     "eventsource": "^2.0.2",
+    "express": "^4.19.2",
     "node-fetch": "^3.3.2",
     "openai": "^4.56.0",
-    "ws": "^8.18.0",
-    "uuid": "^9.0.1"
+    "redis": "^5.5.6",
+    "uuid": "^9.0.1",
+    "ws": "^8.18.3"
   },
   "engines": {
     "node": ">=18.0.0"
