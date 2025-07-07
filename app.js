@@ -1,8 +1,10 @@
-// Enhanced app.js with fixed MCP client implementation
+// Enhanced app.js with official MCP TypeScript SDK
 const express = require('express');
 const http = require('http');
 const path = require('path');
 const { MCPMonitor, createMonitoringWebSocketServer } = require('./monitoring-middleware');
+const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
+const { SSEClientTransport } = require('@modelcontextprotocol/sdk/client/sse.js');
 
 const app = express();
 const server = http.createServer(app);
@@ -15,158 +17,176 @@ app.use(monitor.requestMonitoring());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Simplified MCP Client that follows proper MCP protocol
-class MCPClient {
+// Official MCP Client using the TypeScript SDK
+class OfficialMCPClient {
   constructor(baseUrl, monitor) {
     this.baseUrl = baseUrl.replace('/sse', '');
+    this.sseUrl = `${this.baseUrl}/sse`;
     this.monitor = monitor;
-    this.requestId = 1;
+    this.client = null;
+    this.transport = null;
+    this.connected = false;
   }
 
-  async callTool(toolName, params) {
-    const requestId = this.requestId++;
-    
-    // Standard MCP JSON-RPC 2.0 message format
-    const message = {
-      jsonrpc: "2.0",
-      id: requestId,
-      method: "tools/call",
-      params: {
-        name: toolName,
-        arguments: params
-      }
-    };
+  async connect() {
+    if (this.connected) return;
 
-    // Start monitoring the MCP call
-    const tracker = this.monitor.trackMCPCall(toolName, params, Date.now());
+    try {
+      console.log(`[MCP-SDK] Connecting to ${this.sseUrl}`);
+      this.monitor.logActivity('MCP_CONNECT_START', {
+        endpoint: this.sseUrl,
+        timestamp: new Date().toISOString()
+      });
+
+      // Create SSE transport using official SDK
+      this.transport = new SSEClientTransport(new URL(this.sseUrl));
+      
+      // Create MCP client using official SDK
+      this.client = new Client(
+        {
+          name: "simple-nodejs-mcp-agent",
+          version: "1.0.0"
+        },
+        {
+          capabilities: {
+            tools: {}
+          }
+        }
+      );
+
+      // Connect the client
+      await this.client.connect(this.transport);
+      this.connected = true;
+
+      console.log(`[MCP-SDK] Connected successfully`);
+      this.monitor.updateHealthStatus('mcp', 'healthy', {
+        endpoint: this.sseUrl,
+        connected: true,
+        sdk: 'official'
+      });
+      
+      this.monitor.logActivity('MCP_CONNECT_SUCCESS', {
+        endpoint: this.sseUrl,
+        timestamp: new Date().toISOString()
+      });
+      
+    } catch (error) {
+      console.error(`[MCP-SDK] Connection failed:`, error);
+      this.monitor.updateHealthStatus('mcp', 'error', {
+        endpoint: this.sseUrl,
+        error: error.message,
+        sdk: 'official'
+      });
+      throw error;
+    }
+  }
+
+  async callTool(toolName, arguments) {
+    await this.connect();
+    
+    const tracker = this.monitor.trackMCPCall(toolName, arguments, Date.now());
     const startTime = Date.now();
 
     try {
-      console.log(`[MCP] Calling tool ${toolName} at ${this.baseUrl}`);
-      console.log(`[MCP] Request:`, JSON.stringify(message, null, 2));
+      console.log(`[MCP-SDK] Calling tool: ${toolName}`, arguments);
       
-      const response = await fetch(this.baseUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'User-Agent': 'simple-nodejs-mcp-agent/1.0'
-        },
-        body: JSON.stringify(message)
+      // Use official SDK to call tool
+      const result = await this.client.callTool({
+        name: toolName,
+        arguments: arguments
       });
 
       const responseTime = Date.now() - startTime;
-      console.log(`[MCP] Response status: ${response.status}`);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[MCP] Error response:`, errorText);
-        
-        tracker.end(false, responseTime, { status: response.status, error: errorText });
-        this.monitor.updateHealthStatus('mcp', 'error', {
-          status: response.status,
-          error: errorText,
-          tool: toolName
-        });
-        
-        // Provide more specific error messages based on status code
-        if (response.status === 405) {
-          throw new Error(`Method Not Allowed - MCP Gateway doesn't accept POST requests to ${this.baseUrl}. The gateway might be configured differently or require a different endpoint.`);
-        } else if (response.status === 404) {
-          throw new Error(`Not Found - MCP Gateway endpoint ${this.baseUrl} doesn't exist. Check if the gateway is running and the URL is correct.`);
-        } else if (response.status === 403) {
-          throw new Error(`Forbidden - Access denied to MCP Gateway. Check authentication or permissions.`);
-        } else {
-          throw new Error(`HTTP ${response.status}: ${errorText}`);
-        }
-      }
-
-      const result = await response.json();
-      console.log(`[MCP] Response:`, JSON.stringify(result, null, 2));
-
-      if (result.error) {
-        tracker.end(false, responseTime, result.error);
-        this.monitor.updateHealthStatus('mcp', 'warning', {
-          lastError: result.error,
-          tool: toolName
-        });
-        throw new Error(`MCP Error: ${result.error.message || JSON.stringify(result.error)}`);
-      }
-
-      tracker.end(true, responseTime, result.result || result);
+      console.log(`[MCP-SDK] Tool call successful:`, result);
+      
+      tracker.end(true, responseTime, result);
       this.monitor.updateHealthStatus('mcp', 'healthy');
       
-      return result.result || result;
+      return result;
     } catch (error) {
       const responseTime = Date.now() - startTime;
+      console.error(`[MCP-SDK] Tool call failed:`, error);
+      
       tracker.end(false, responseTime, null);
       this.monitor.updateHealthStatus('mcp', 'error', {
         error: error.message,
         tool: toolName
       });
-      console.error(`[MCP] Tool call failed:`, error.message);
+      throw error;
+    }
+  }
+
+  async listTools() {
+    await this.connect();
+    
+    try {
+      console.log(`[MCP-SDK] Listing available tools`);
+      const result = await this.client.listTools();
+      console.log(`[MCP-SDK] Available tools:`, result);
+      return result;
+    } catch (error) {
+      console.error(`[MCP-SDK] Failed to list tools:`, error);
       throw error;
     }
   }
 
   async testConnection() {
     try {
-      console.log(`[MCP] Testing connection to ${this.baseUrl}`);
+      console.log(`[MCP-SDK] Testing connection...`);
+      await this.connect();
       
-      // Try a simple health check first
-      const healthResponse = await fetch(`${this.baseUrl}/health`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
-
-      if (healthResponse.ok) {
-        const health = await healthResponse.json();
-        console.log(`[MCP] Health check passed:`, health);
-        return true;
-      }
+      // Try to list tools to verify connection
+      await this.listTools();
       
-      // If no health endpoint, try the base endpoint
-      const baseResponse = await fetch(this.baseUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
-
-      console.log(`[MCP] Base endpoint response: ${baseResponse.status}`);
-      return baseResponse.status !== 404;
-      
+      console.log(`[MCP-SDK] Connection test passed`);
+      return true;
     } catch (error) {
-      console.error(`[MCP] Connection test failed:`, error.message);
+      console.error(`[MCP-SDK] Connection test failed:`, error.message);
       return false;
+    }
+  }
+
+  async disconnect() {
+    if (this.client && this.connected) {
+      try {
+        await this.client.close();
+        this.connected = false;
+        console.log(`[MCP-SDK] Disconnected`);
+        this.monitor.logActivity('MCP_DISCONNECT', {
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        console.error(`[MCP-SDK] Disconnect error:`, error);
+      }
     }
   }
 }
 
-// Enhanced SimpleAgent with fixed MCP client
+// Enhanced SimpleAgent with official MCP SDK
 class SimpleAgent {
   constructor() {
     const rawEndpoint = process.env.MCP_ENDPOINT || process.env.MCP_GATEWAY_URL || 'http://mcp-gateway:8811';
     this.mcpEndpoint = rawEndpoint.replace('/sse', '');
     
-    // Initialize simplified MCP client
-    this.mcpClient = new MCPClient(this.mcpEndpoint, monitor);
+    // Initialize official MCP client
+    this.mcpClient = new OfficialMCPClient(this.mcpEndpoint, monitor);
     
     this.modelEndpoint = process.env.MODEL_RUNNER_URL || 'http://model-runner.docker.internal:12434/v1';
     this.model = process.env.MODEL_RUNNER_MODEL || 'ai/gemma3-qat';
     this.warmupDone = false;
     
     console.log(`[CONFIG] MCP Endpoint: ${this.mcpEndpoint}`);
+    console.log(`[CONFIG] MCP SSE Endpoint: ${this.mcpEndpoint}/sse`);
     console.log(`[CONFIG] Model Endpoint: ${this.modelEndpoint}`);
     console.log(`[CONFIG] Model: ${this.model}`);
+    console.log(`[CONFIG] Using Official MCP SDK`);
     
     // Update initial health status
     monitor.updateHealthStatus('app', 'healthy', {
       mcpEndpoint: this.mcpEndpoint,
       modelEndpoint: this.modelEndpoint,
-      model: this.model
+      model: this.model,
+      mcpSdk: 'official'
     });
   }
 
@@ -287,42 +307,56 @@ class SimpleAgent {
 
   async testMCPConnection() {
     try {
-      console.log('[MCP] Testing connection...');
+      console.log('[MCP-SDK] Testing connection...');
       const isConnected = await this.mcpClient.testConnection();
       if (isConnected) {
-        console.log('[MCP] Connection test passed');
+        console.log('[MCP-SDK] Connection test passed');
         monitor.updateHealthStatus('mcp', 'healthy', {
           endpoint: this.mcpEndpoint,
-          connected: true
+          connected: true,
+          sdk: 'official'
         });
         return true;
       } else {
-        console.log('[MCP] Connection test failed');
+        console.log('[MCP-SDK] Connection test failed');
         monitor.updateHealthStatus('mcp', 'warning', {
           endpoint: this.mcpEndpoint,
-          connected: false
+          connected: false,
+          sdk: 'official'
         });
         return false;
       }
     } catch (error) {
-      console.error('[MCP] Connection test error:', error.message);
+      console.error('[MCP-SDK] Connection test error:', error.message);
       monitor.updateHealthStatus('mcp', 'error', {
         endpoint: this.mcpEndpoint,
-        error: error.message
+        error: error.message,
+        sdk: 'official'
       });
       return false;
     }
   }
 
+  async listMCPTools() {
+    try {
+      console.log('[MCP-SDK] Listing available tools...');
+      const tools = await this.mcpClient.listTools();
+      return tools;
+    } catch (error) {
+      console.error('[MCP-SDK] Failed to list tools:', error.message);
+      return { error: error.message };
+    }
+  }
+
   async callMCPTool(tool, params) {
     try {
-      console.log(`[MCP] Calling tool: ${tool} with params:`, params);
+      console.log(`[MCP-SDK] Calling tool: ${tool} with params:`, params);
       const result = await this.mcpClient.callTool(tool, params);
       return result;
     } catch (error) {
-      console.error('[MCP] Tool call failed:', error.message);
+      console.error('[MCP-SDK] Tool call failed:', error.message);
       return { 
-        error: `MCP call failed: ${error.message}\n\nTroubleshooting tips:\n1. Check if MCP Gateway is running: docker compose ps\n2. Check MCP Gateway logs: docker compose logs mcp-gateway\n3. Verify gateway configuration in compose.yaml\n4. Ensure network connectivity between services\n5. Try restarting the services: docker compose restart` 
+        error: `MCP call failed: ${error.message}\n\nUsing Official MCP SDK. Check:\n1. MCP Gateway is running: docker compose ps\n2. MCP Gateway logs: docker compose logs mcp-gateway\n3. Gateway supports the requested tool\n4. Network connectivity between services` 
       };
     }
   }
@@ -362,7 +396,7 @@ class SimpleAgent {
           max_results: 5 
         } 
       };
-      console.log('[TOOL] Selected DuckDuckGo search via MCP:', toolCall);
+      console.log('[TOOL] Selected DuckDuckGo search via MCP SDK:', toolCall);
       monitor.logActivity('TOOL_SELECTED', {
         tool: 'search',
         reason: 'search_keywords_detected',
@@ -406,6 +440,7 @@ class SimpleAgent {
         toolResult: toolResult,
         response: finalResponse.content,
         timestamp: new Date().toISOString(),
+        mcpSdk: 'official',
         note: toolResult && toolResult.error ? "Search tools are currently unavailable. Response based on model knowledge." : null
       };
       
@@ -429,7 +464,8 @@ class SimpleAgent {
         query,
         error: error.message,
         response: "Sorry, I encountered an error processing your request.",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        mcpSdk: 'official'
       };
     }
   }
@@ -454,7 +490,9 @@ app.get('/health', async (req, res) => {
   const healthData = {
     status: 'healthy', 
     mcpEndpoint: agent.mcpEndpoint,
+    mcpSSEEndpoint: `${agent.mcpEndpoint}/sse`,
     mcpConnected: mcpConnected,
+    mcpSdk: 'official',
     modelEndpoint: agent.modelEndpoint,
     model: agent.model,
     timestamp: new Date().toISOString(),
@@ -487,6 +525,8 @@ app.get('/test-mcp', async (req, res) => {
     res.json({ 
       connected: isConnected,
       endpoint: agent.mcpEndpoint,
+      sseEndpoint: `${agent.mcpEndpoint}/sse`,
+      sdk: 'official',
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -494,6 +534,27 @@ app.get('/test-mcp', async (req, res) => {
       error: error.message,
       connected: false,
       endpoint: agent.mcpEndpoint,
+      sdk: 'official',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// List available MCP tools
+app.get('/mcp-tools', async (req, res) => {
+  try {
+    const tools = await agent.listMCPTools();
+    res.json({
+      tools: tools,
+      endpoint: agent.mcpEndpoint,
+      sdk: 'official',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: error.message,
+      endpoint: agent.mcpEndpoint,
+      sdk: 'official',
       timestamp: new Date().toISOString()
     });
   }
@@ -514,6 +575,11 @@ process.on('SIGTERM', () => {
     timestamp: new Date().toISOString()
   });
   
+  // Disconnect MCP client
+  if (agent.mcpClient) {
+    agent.mcpClient.disconnect();
+  }
+  
   if (wss) {
     wss.close();
   }
@@ -524,18 +590,22 @@ process.on('SIGTERM', () => {
 // Start server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', async () => {
-  console.log(`[SERVER] Simple MCP Agent with monitoring running on port ${PORT}`);
+  console.log(`[SERVER] Simple MCP Agent with Official SDK running on port ${PORT}`);
   console.log(`[SERVER] Dashboard: http://localhost:${PORT}/dashboard`);
   console.log(`[SERVER] Metrics API: http://localhost:${PORT}/metrics`);
   console.log(`[SERVER] Health Check: http://localhost:${PORT}/health`);
   console.log(`[SERVER] Test MCP: http://localhost:${PORT}/test-mcp`);
+  console.log(`[SERVER] MCP Tools: http://localhost:${PORT}/mcp-tools`);
   console.log(`[CONFIG] MCP Endpoint: ${agent.mcpEndpoint}`);
+  console.log(`[CONFIG] MCP SSE Endpoint: ${agent.mcpEndpoint}/sse`);
   console.log(`[CONFIG] Model Endpoint: ${agent.modelEndpoint}`);
   console.log(`[CONFIG] Model: ${agent.model}`);
+  console.log(`[CONFIG] Using Official MCP TypeScript SDK`);
   console.log(`[CONFIG] WebSocket monitoring enabled`);
   
   monitor.logActivity('SERVER_START', {
     port: PORT,
+    mcpSdk: 'official',
     timestamp: new Date().toISOString()
   });
   
