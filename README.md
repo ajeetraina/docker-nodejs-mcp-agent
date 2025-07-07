@@ -20,6 +20,12 @@ docker compose -f compose.yaml -f compose.openai.yaml up
 docker compose -f compose.yaml -f compose.offload.yaml up --build
 ```
 
+## Demo with Dashboard
+
+```
+docker compose -f compose.yaml -f compose.monitoring.yaml up --build
+```
+
 ## Architecture
 
 This project follows the standard 4-layer pattern used across the ecosystem:
