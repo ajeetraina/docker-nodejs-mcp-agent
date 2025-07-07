@@ -17,6 +17,7 @@
   "author": "Ajeet Singh Raina",
   "license": "MIT",
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.4.0",
     "cors": "^2.8.5",
     "eventsource": "^2.0.2",
     "express": "^4.19.2",
@@ -25,6 +26,9 @@
     "redis": "^5.5.6",
     "uuid": "^9.0.1",
     "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
