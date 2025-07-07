@@ -1,0 +1,53 @@
+{
+  "name": "simple-nodejs-mcp-agent",
+  "version": "1.1.0",
+  "description": "A simple AI agent built with Node.js that uses Model Context Protocol (MCP) with comprehensive monitoring",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "start:enhanced": "node app-enhanced.js",
+    "dev": "node --watch app.js",
+    "dev:enhanced": "node --watch app-enhanced.js",
+    "test": "node test-suite.js",
+    "test:health": "node test-suite.js --test=health",
+    "test:search": "node test-suite.js --test=search",
+    "test:model": "node test-suite.js --test=model",
+    "test:components": "node test-suite.js --test=components",
+    "monitoring:start": "docker compose -f compose.yaml -f compose.monitoring.yaml up --build",
+    "monitoring:dev": "docker compose -f compose.yaml -f compose.monitoring.yaml up --build --remove-orphans"
+  },
+  "keywords": ["mcp", "ai", "agent", "nodejs", "docker", "monitoring", "websocket", "dashboard", "testing"],
+  "author": "Ajeet Singh Raina",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "eventsource": "^2.0.2",
+    "node-fetch": "^3.3.2",
+    "openai": "^4.56.0",
+    "ws": "^8.18.0",
+    "uuid": "^9.0.1",
+    "redis": "^4.6.12"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "monitoring": {
+    "enabled": true,
+    "dashboard": "http://localhost:3000/dashboard",
+    "metrics": "http://localhost:3000/metrics",
+    "websocket": "ws://localhost:3000"
+  },
+  "testing": {
+    "testSuite": "test-suite.js",
+    "endpoints": {
+      "health": "/health",
+      "chat": "/chat",
+      "metrics": "/metrics",
+      "activity": "/activity"
+    }
+  }
+}

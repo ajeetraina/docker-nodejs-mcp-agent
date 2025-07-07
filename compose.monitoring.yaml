@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  app:
+    environment:
+      - MONITORING_ENABLED=true
+      - LOG_LEVEL=debug
+    volumes:
+      - ./public:/app/public
+      - ./monitoring-middleware.js:/app/monitoring-middleware.js
+      - ./app-enhanced.js:/app/app-enhanced.js
+    command: ["node", "app-enhanced.js"]
+    
+  mcp-gateway:
+    environment:
+      - GATEWAY_LOG_LEVEL=debug
