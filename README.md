@@ -12,7 +12,7 @@ docker compose up --build
 echo "your-api-key" > secret.openai-api-key
 docker compose -f compose.yaml -f compose.openai.yaml up
 
-# With larger models (Docker Offload)
+# With larger models 
 docker compose -f compose.yaml -f compose.offload.yaml up --build
 ```
 
