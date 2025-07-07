@@ -1,6 +1,10 @@
 # Simple Node.js MCP Agent
 
+
 An AI agent built with Node.js using Model Context Protocol (MCP) and Docker Model Runner for local AI inference.
+
+![image](https://github.com/user-attachments/assets/79e3013e-4ea1-4bf2-92c4-b9671d401cac)
+
 
 ## Quick Start
 
