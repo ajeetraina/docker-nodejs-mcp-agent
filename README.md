@@ -3,6 +3,13 @@
 
 An AI agent built with Node.js using Model Context Protocol (MCP) and Docker Model Runner for local AI inference.
 
+This repo demonstrates:
+- Docker Model Runner
+- Docker Offload
+- Docker MCP Gateway
+
+all using a single Docker Compose file
+
 ![image](https://github.com/user-attachments/assets/18b7eb58-18c8-47e4-80d3-fc91fc944ab9)
 
 
