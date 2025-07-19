@@ -1,5 +1,3 @@
-# Docker Compose configuration for Simple Node.js MCP Agent
-# Based on working examples from compose-for-agents repository
 
 services:
   app:
